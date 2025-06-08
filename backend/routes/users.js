@@ -632,7 +632,7 @@ router.get('/:userId([0-9a-fA-F]{24})/activity', async (req, res) => {
   }
 });
 
-// backend/routes/users.js の投稿のアナリティクス取得エンドポイントを更新
+// backend/routes/users.js の投稿のアナリティクス取得エンドポイントを修正
 
 // 投稿のアナリティクス取得エンドポイント
 router.get('/me/works/:postId/analytics', authenticateToken, async (req, res) => {
@@ -651,7 +651,7 @@ router.get('/me/works/:postId/analytics', authenticateToken, async (req, res) =>
 
     // ViewAnalyticsからデータを取得
     const viewAnalytics = await ViewAnalytics.findOne({ postId })
-      .select('timeWindows periodAggregates packedViewData');
+      .select('timeWindows packedViewData');
 
     // 基本統計
     const basicStats = {
@@ -666,88 +666,94 @@ router.get('/me/works/:postId/analytics', authenticateToken, async (req, res) =>
     let timeSeriesData = {};
     let hourlyData = [];
 
-    if (viewAnalytics) {
+    if (viewAnalytics && viewAnalytics.timeWindows) {
+      console.log(`📊 ${postId}: timeWindows数 = ${viewAnalytics.timeWindows.length}`);
+      
+      // 各期間のデータを準備
+      const periods = ['hour', 'day', 'week', 'month', 'year'];
+      
+      periods.forEach(period => {
+        // 該当期間のデータをフィルタリングしてソート
+        const periodData = viewAnalytics.timeWindows
+          .filter(window => window.period === period)
+          .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+          .map(window => ({
+            date: window.startTime.toISOString(),
+            startTime: window.startTime.toISOString(),
+            views: window.totalViews || 0,
+            totalViews: window.totalViews || 0,
+            uniqueUsers: window.uniqueUsers || 0
+          }));
+
+        if (periodData.length > 0) {
+          timeSeriesData[period] = periodData;
+          console.log(`📈 ${period}: ${periodData.length}件のデータ`);
+        }
+      });
+
       // 時間足データ（指定された日付の24時間分）
-      if (date && viewAnalytics.timeWindows) {
+      if (date) {
         const selectedDate = new Date(date);
         const nextDate = new Date(selectedDate);
         nextDate.setDate(nextDate.getDate() + 1);
 
         // 指定日の時間窓データを取得
-        const dayWindows = viewAnalytics.timeWindows.filter(window => {
+        const dayHourWindows = viewAnalytics.timeWindows.filter(window => {
+          if (window.period !== 'hour') return false;
           const windowDate = new Date(window.startTime);
           return windowDate >= selectedDate && windowDate < nextDate;
         });
 
+        console.log(`🕐 ${date}の時間データ: ${dayHourWindows.length}件`);
+
         // 24時間分のデータを初期化
         hourlyData = Array.from({ length: 24 }, (_, hour) => {
-          const hourWindows = dayWindows.filter(window => {
+          const hourWindow = dayHourWindows.find(window => {
             return new Date(window.startTime).getHours() === hour;
           });
           
-          const views = hourWindows.reduce((sum, window) => sum + window.totalViews, 0);
-          return { hour, views };
+          return { 
+            hour, 
+            views: hourWindow ? hourWindow.totalViews : 0 
+          };
         });
-      }
+      } else {
+        // 日付が指定されていない場合は今日のデータを取得
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
 
-      // 期間別データの準備
-      if (viewAnalytics.periodAggregates) {
-        const periodMapping = {
-          hour: 'hour',
-          day: 'day', 
-          week: 'week',
-          month: 'month',
-          year: 'year'
-        };
-
-        const targetPeriod = periodMapping[timeframe];
-        if (targetPeriod) {
-          const periodData = viewAnalytics.periodAggregates
-            .filter(agg => agg.period === targetPeriod)
-            .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
-            .slice(-getDataLimit(timeframe))
-            .map(agg => ({
-              date: agg.startTime.toISOString(),
-              startTime: agg.startTime.toISOString(),
-              views: agg.totalViews,
-              totalViews: agg.totalViews,
-              uniqueUsers: agg.uniqueUsers
-            }));
-
-          timeSeriesData[timeframe] = periodData;
-        }
-      }
-
-      // 時間窓から日別データを生成（period aggregatesがない場合のフォールバック）
-      if (timeframe === 'day' && (!timeSeriesData.day || timeSeriesData.day.length === 0) && viewAnalytics.timeWindows) {
-        const dailyViews = {};
-        
-        viewAnalytics.timeWindows.forEach(window => {
-          const date = new Date(window.startTime).toDateString();
-          if (!dailyViews[date]) {
-            dailyViews[date] = { views: 0, uniqueUsers: 0 };
-          }
-          dailyViews[date].views += window.totalViews;
-          dailyViews[date].uniqueUsers += window.uniqueUsers;
+        const todayHourWindows = viewAnalytics.timeWindows.filter(window => {
+          if (window.period !== 'hour') return false;
+          const windowDate = new Date(window.startTime);
+          return windowDate >= today && windowDate < tomorrow;
         });
 
-        timeSeriesData.day = Object.entries(dailyViews)
-          .map(([date, data]) => ({
-            date: new Date(date).toISOString(),
-            views: data.views,
-            uniqueUsers: data.uniqueUsers
-          }))
-          .sort((a, b) => new Date(a.date) - new Date(b.date))
-          .slice(-30); // 最新30日分
+        hourlyData = Array.from({ length: 24 }, (_, hour) => {
+          const hourWindow = todayHourWindows.find(window => {
+            return new Date(window.startTime).getHours() === hour;
+          });
+          
+          return { 
+            hour, 
+            views: hourWindow ? hourWindow.totalViews : 0 
+          };
+        });
       }
     }
 
     // エンゲージメント率の計算
     const engagement = {
-      likeRate: basicStats.totalViews > 0 ? (basicStats.totalLikes / basicStats.totalViews * 100).toFixed(2) : 0,
-      bookmarkRate: basicStats.totalViews > 0 ? (basicStats.totalBookmarks / basicStats.totalViews * 100).toFixed(2) : 0,
-      commentRate: basicStats.totalViews > 0 ? (basicStats.totalComments / basicStats.totalViews * 100).toFixed(2) : 0
+      likeRate: basicStats.totalViews > 0 ? (basicStats.totalLikes / basicStats.totalViews * 100).toFixed(2) : '0.00',
+      bookmarkRate: basicStats.totalViews > 0 ? (basicStats.totalBookmarks / basicStats.totalViews * 100).toFixed(2) : '0.00',
+      commentRate: basicStats.totalViews > 0 ? (basicStats.totalComments / basicStats.totalViews * 100).toFixed(2) : '0.00'
     };
+
+    console.log(`✅ アナリティクス応答準備完了:`);
+    console.log(`   - 基本統計: ${JSON.stringify(basicStats)}`);
+    console.log(`   - 時系列データ期間: ${Object.keys(timeSeriesData).join(', ')}`);
+    console.log(`   - 時間別データ: ${hourlyData.length}時間分`);
 
     res.json({
       postId,
