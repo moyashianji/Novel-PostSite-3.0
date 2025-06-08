@@ -1,0 +1,19 @@
+[package]
+name = "trend-calculator"
+version = "0.1.0"
+edition = "2021"
+description = "高速な急上昇スコア計算エンジン"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2.84"
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.5"
+js-sys = "0.3.61"
+serde_json = "1.0"  # この行を追加
+
+[profile.release]
+lto = true
+opt-level = 3

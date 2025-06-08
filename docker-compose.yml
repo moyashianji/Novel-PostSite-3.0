@@ -1,0 +1,80 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/app:cached  # ホスト側とコンテナ側のコード同期
+      - /app/node_modules  # node_modulesをホストと分離
+    environment:
+      - CHOKIDAR_USEPOLLING=true  # ファイル監視モードを有効化
+    command: npm start  # ホットリロード用の開発モードで起動
+    ports:
+      - "3000:3000"
+
+  backend:
+    build:
+      context: ./backend  # バックエンドのパス
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env  # この行で .env ファイルを読み込む
+    volumes:
+      - ./backend:/usr/src/app  # ホスト側とコンテナ側のコードを同期
+      - /usr/src/app/node_modules  # node_modulesをホストと分離
+      - ./uploads:/app/uploads
+
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/novel-site  # ホストのMongoDBに接続
+      - REDIS_URL=redis://redis:6379  # ここに追加（Redisへの接続設定）
+      - ELASTICSEARCH_URL=http://elasticsearch:9200  # Elasticsearchへの接続設定
+    ports:
+      - "5000:5000"
+    depends_on:
+      - frontend
+      - redis  # Redisの依存関係を追加
+      - elasticsearch  # Elasticsearchの依存関係を追加      
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server"]
+
+  elasticsearch:
+    build:
+      context: ./elasticsearch  # ✅ Dockerfileのあるディレクトリを指定
+      dockerfile: Dockerfile
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false  # 認証を無効化（開発環境）
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data  # データを永続化      
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.0
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch      
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf  # メイン設定をマウント
+      - ./default.conf:/etc/nginx/conf.d/default.conf  # サーバーブロック設定をマウント
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  mongo-data:
+  elasticsearch-data:  # Elasticsearch のデータを保存

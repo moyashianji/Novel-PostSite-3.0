@@ -1,0 +1,40 @@
+﻿# Node.js dependencies
+node_modules/
+*/node_modules/
+backend/node_modules/
+.cache/
+*.pack
+
+# Log files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Production build
+/build
+/dist
+
+# Coverage directory
+coverage/
+
+# uploads
+backend/uploads/
