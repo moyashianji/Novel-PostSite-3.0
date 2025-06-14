@@ -19,210 +19,96 @@ const NotificationGenerator = require('../utils/notificationGenerator');
 
 const esClient = getEsClient();
 
-// メモリキャッシュとバッチ処理の設定
-//const VIEW_CACHE = new Map();
-//const CACHE_TTL = 300; // 秒
-//const MAX_BATCH_SIZE = 500;
-//let viewBatch = [];
-//let processingBatch = false;
-//
-//// 個別の:idに対するRate Limiter
-//const viewRateLimiter = rateLimit({
-//  windowMs: 1 * 60 * 1000, // 1分間
-//  max: 5, // 同じIDに対して5リクエストまで
-//  keyGenerator: (req) => `${req.params.id}:${req.ip}`, // リクエストを制限するキーを生成
-//  message: { message: '1分間に5回以上リクエストすることはできません。' },
-//  standardHeaders: true,
-//  legacyHeaders: false,
-//});
-//
-//// バッチ処理関数
-//const processViewBatch = async () => {
-//  if (viewBatch.length === 0 || processingBatch) return;
-//  
-//  processingBatch = true;
-//  const batch = [...viewBatch];
-//  viewBatch = [];
-//  
-//  try {
-//    // 1. 同じpostIdの閲覧をまとめる
-//    const postCounts = {};
-//    const userViews = [];
-//    
-//    batch.forEach(view => {
-//      postCounts[view.postId] = (postCounts[view.postId] || 0) + 1;
-//      
-//      if (view.userId) {
-//        userViews.push({
-//          userId: view.userId,
-//          postId: view.postId,
-//          timestamp: view.timestamp
-//        });
-//      }
-//    });
-//    
-//    // 2. Redisで複数の操作をパイプライン化
-//    const pipeline = redisClient.pipeline();
-//    
-//    // 各投稿のカウンターを更新
-//    Object.entries(postCounts).forEach(([postId, count]) => {
-//      // カウンター増加
-//      pipeline.hincrby(`post:${postId}:counters`, 'viewCounter', count);
-//      // 同期フラグ設定
-//      pipeline.hset(`post:${postId}:counters`, 'pendingSync', '1');
-//      // キーの有効期限設定（1日）
-//      pipeline.expire(`post:${postId}:counters`, 86400);
-//      
-//      // アクティブな投稿リストを更新
-//      pipeline.zadd('active:posts', Date.now(), postId);
-//    });
-//    
-//    // ユーザー閲覧履歴を更新（重複を防ぐため、ユーザーごとに最新の閲覧のみ）
-//    const userPostMap = new Map();
-//    userViews.forEach(view => {
-//      userPostMap.set(`${view.userId}-${view.postId}`, view);
-//    });
-//    
-//    Array.from(userPostMap.values()).forEach(view => {
-//      // ユーザーの閲覧履歴に追加
-//      pipeline.zadd(`user:${view.userId}:viewHistory`, view.timestamp, view.postId);
-//      // 最新50件のみを保持
-//      pipeline.zremrangebyrank(`user:${view.userId}:viewHistory`, 0, -51);
-//    });
-//    
-//    // 3. 分析サービスにイベントを送信
-//    batch.forEach(view => {
-//      // イベントストリームに追加
-//      pipeline.xadd(
-//        'events:views',
-//        '*', // 自動ID生成
-//        'postId', view.postId,
-//        'userId', view.userId || '',
-//        'sessionId', view.sessionId || '',
-//        'userAgent', view.userAgent || '',
-//        'ip', view.ip || '',
-//        'timestamp', view.timestamp
-//      );
-//    });
-//    
-//    // ストリームサイズ制限
-//    pipeline.xtrim('events:views', 'MAXLEN', '~', 100000);
-//    
-//    // パイプライン実行
-//    await pipeline.exec();
-//    
-//  } catch (error) {
-//    console.error('View batch processing error:', error);
-//    // エラー時は処理できなかったバッチを再キューイング（データロス防止）
-//    if (batch.length > 0) {
-//      viewBatch.unshift(...batch);
-//      // バッファが大きすぎる場合は古いデータを破棄
-//      if (viewBatch.length > MAX_BATCH_SIZE * 2) {
-//        viewBatch = viewBatch.slice(0, MAX_BATCH_SIZE);
-//      }
-//    }
-//  } finally {
-//    processingBatch = false;
-//    
-//    // 残りのバッチがある場合は処理を続行
-//    if (viewBatch.length > 0) {
-//      setTimeout(processViewBatch, 10);
-//    }
-//  }
-//};
-//
-//// 定期的なバッチ処理
-//setInterval(processViewBatch, 2000);
-//
-//// キャッシュクリーンアップ関数
-//function cleanupViewCache() {
-//  const now = Date.now();
-//  for (const [key, entry] of VIEW_CACHE.entries()) {
-//    if (now - entry.timestamp > CACHE_TTL * 1000) {
-//      VIEW_CACHE.delete(key);
-//    }
-//  }
-//}
-//
-//// 定期的なキャッシュクリーンアップ
-//setInterval(cleanupViewCache, 60000);
-//
-//// 超最適化された閲覧カウントエンドポイント
-//router.post('/:id([0-9a-fA-F]{24})/view', viewRateLimiter, (req, res) => {
-//  const postId = req.params.id;
-//  const userId = req.user?._id?.toString();
-//  const sessionId = req.cookies?.sessionId || req.session?.id || req.ip;
-//  const userAgent = req.headers['user-agent'];
-//  const ip = req.ip;
-//  
-//  // 閲覧の一意性を判断するキー（5分間の時間枠でグループ化）
-//  const cacheKey = `${postId}:${userId || sessionId}:${Math.floor(Date.now() / (CACHE_TTL * 1000))}`;
-//  
-//  // メモリキャッシュでユニーク判定（超高速）
-//  if (VIEW_CACHE.has(cacheKey)) {
-//    // 非ユニーク閲覧
-//    return res.status(200).json({ success: true, unique: false });
-//  }
-//  
-//  // 現在のタイムスタンプ
-//  const timestamp = Date.now();
-//  
-//  // キャッシュに保存
-//  VIEW_CACHE.set(cacheKey, { timestamp });
-//  
-//  // バッチに追加
-//  viewBatch.push({
-//    postId,
-//    userId,
-//    sessionId,
-//    userAgent,
-//    ip,
-//    timestamp
-//  });
-//  
-//  // バッチサイズが閾値を超えたら即時処理
-//  if (viewBatch.length >= MAX_BATCH_SIZE && !processingBatch) {
-//    setTimeout(processViewBatch, 0);
-//  }
-//  
-//  // 即座にレスポンスを返す
-//  res.status(200).json({ success: true, unique: true });
-//});
-//
-//// MongoDBとRedisの同期ジョブ
-//cron.schedule('*/2 * * * *', async () => {
-//  try {
-//    // pendingSyncフラグがある投稿カウンターを取得
-//    const keys = await redisClient.keys('post:*:counters');
-//    
-//    if (keys.length === 0) return;
-//    
-//    for (const key of keys) {
-//      try {
-//        const postId = key.split(':')[1];
-//        const counters = await redisClient.hgetall(key);
-//        
-//        // 同期フラグがある場合のみ処理
-//        if (counters && counters.viewCounter && counters.pendingSync === '1') {
-//          const viewCount = parseInt(counters.viewCounter, 10);
-//          
-//          // MongoDBを更新
-//          await Post.findByIdAndUpdate(postId, { viewCounter: viewCount });
-//          
-//          // 同期フラグをクリア
-//          await redisClient.hdel(key, 'pendingSync');
-//          
-//          console.log(`Synced view count for post ${postId}: ${viewCount}`);
-//        }
-//      } catch (err) {
-//        console.error(`Error syncing post ${key.split(':')[1]}:`, err);
-//      }
-//    }
-//  } catch (error) {
-//    console.error('Error during view count sync job:', error);
-//  }
-//});
 
+
+// 一括更新エンドポイント
+router.post('/bulk-update', authenticateToken, async (req, res) => {
+  try {
+    const { postIds, action } = req.body;
+    const userId = req.user._id;
+
+    if (!postIds || !Array.isArray(postIds) || postIds.length === 0) {
+      return res.status(400).json({ message: '更新する作品を選択してください' });
+    }
+
+    const posts = await Post.find({ 
+      _id: { $in: postIds }, 
+      author: userId 
+    });
+
+    if (posts.length === 0) {
+      return res.status(404).json({ message: '更新可能な作品が見つかりません' });
+    }
+
+    // publicityStatus のみを更新
+    let updateData = {};
+    switch (action) {
+      case 'public':
+        updateData = { publicityStatus: 'public' };
+        break;
+      case 'limited':
+        updateData = { publicityStatus: 'limited' };
+        break;
+      case 'private':
+        updateData = { publicityStatus: 'private' };
+        break;
+      default:
+        return res.status(400).json({ message: '無効な操作です' });
+    }
+
+    const result = await Post.updateMany(
+      { _id: { $in: posts.map(p => p._id) } },
+      { $set: updateData }
+    );
+
+    res.json({ 
+      message: `${result.modifiedCount}件の作品を更新しました`,
+      updatedCount: result.modifiedCount
+    });
+
+  } catch (error) {
+    console.error('一括更新エラー:', error);
+    res.status(500).json({ message: '一括更新に失敗しました' });
+  }
+});
+// 一括削除エンドポイント
+router.post('/bulk-delete', authenticateToken, async (req, res) => {
+  try {
+    const { postIds } = req.body;
+    const userId = req.user._id;
+
+    if (!postIds || !Array.isArray(postIds) || postIds.length === 0) {
+      return res.status(400).json({ message: '削除する作品を選択してください' });
+    }
+
+    // 自分の作品のみを対象とする
+    const posts = await Post.find({ 
+      _id: { $in: postIds }, 
+      author: userId 
+    });
+
+    if (posts.length === 0) {
+      return res.status(404).json({ message: '削除可能な作品が見つかりません' });
+    }
+
+    const postIdsToDelete = posts.map(p => p._id);
+
+    // 作品削除
+    await Post.deleteMany({ _id: { $in: postIdsToDelete } });
+
+    // 対応するViewAnalyticsも削除
+    await ViewAnalytics.deleteMany({ postId: { $in: postIdsToDelete } });
+
+    res.json({ 
+      message: `${posts.length}件の作品を削除しました`,
+      deletedCount: posts.length
+    });
+
+  } catch (error) {
+    console.error('一括削除エラー:', error);
+    res.status(500).json({ message: '一括削除に失敗しました' });
+  }
+});
 // ランキングエンドポイントの定義
 router.get('/ranking', async (req, res) => {
   try {
@@ -232,41 +118,78 @@ router.get('/ranking', async (req, res) => {
       { $set: { viewCounter: 0 } }
     );
 
-    // viewCounterが高い順に30件のポストを取得
-    const posts = await Post.find().populate('author').sort({ viewCounter: -1 }).limit(30);
+    // 公開作品のみでランキング生成（限定公開は除外）
+    const posts = await Post.find({ 
+      publicityStatus: 'public' 
+    })
+      .populate('author')
+      .sort({ viewCounter: -1 })
+      .limit(30);
+    
     res.json(posts);
   } catch (error) {
     console.error('Error fetching ranking:', error);
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-// 投稿の一覧を取得
+
+//// 投稿の一覧を取得
+//router.get('/', async (req, res) => {
+//  try {
+//    // クエリパラメータからページ番号を取得。デフォルトは1ページ目。
+//    const page = parseInt(req.query.page) || 1;
+//    const postsPerPage = 20; // 1ページあたりの投稿数
+//
+//    // 投稿数をカウント
+//    const totalPosts = await Post.countDocuments();
+//
+//    // 投稿を取得 (ページネーション対応)
+//    const posts = await Post.find()
+//      .populate('author')
+//      .populate('series')   // シリーズ情報を取得
+//      .sort({ createdAt: -1 }) // 新しい投稿から順に取得
+//      .skip((page - 1) * postsPerPage) // スキップする件数
+//      .limit(postsPerPage); // 取得する件数を制限
+//
+//    // レスポンスとして投稿データと総投稿数を返す
+//    res.json({
+//      posts,
+//      totalPosts,
+//      totalPages: Math.ceil(totalPosts / postsPerPage), // 総ページ数を計算
+//      currentPage: page,
+//    });
+//  } catch (error) {
+//    console.error('Error fetching posts:', error);
+//    res.status(500).json({ message: '投稿の取得に失敗しました。' });
+//  }
+//});
 router.get('/', async (req, res) => {
   try {
-    // クエリパラメータからページ番号を取得。デフォルトは1ページ目。
     const page = parseInt(req.query.page) || 1;
-    const postsPerPage = 20; // 1ページあたりの投稿数
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-    // 投稿数をカウント
-    const totalPosts = await Post.countDocuments();
-
-    // 投稿を取得 (ページネーション対応)
-    const posts = await Post.find()
-      .populate('author')
+    // 公開作品のみを取得（限定公開は検索結果に含めない）
+    const posts = await Post.find({ 
+      publicityStatus: 'public' // publicityStatus のみ使用
+    })
+      .populate('author', 'nickname icon')
       .populate('series')   // シリーズ情報を取得
-      .sort({ createdAt: -1 }) // 新しい投稿から順に取得
-      .skip((page - 1) * postsPerPage) // スキップする件数
-      .limit(postsPerPage); // 取得する件数を制限
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
 
-    // レスポンスとして投稿データと総投稿数を返す
+    const totalPosts = await Post.countDocuments({ 
+      publicityStatus: 'public' 
+    });
+
     res.json({
       posts,
-      totalPosts,
-      totalPages: Math.ceil(totalPosts / postsPerPage), // 総ページ数を計算
+      totalPages: Math.ceil(totalPosts / limit),
       currentPage: page,
     });
   } catch (error) {
-    console.error('Error fetching posts:', error);
+    console.error('投稿取得エラー:', error);
     res.status(500).json({ message: '投稿の取得に失敗しました。' });
   }
 });
@@ -310,18 +233,47 @@ router.get('/tag/:tag', async (req, res) => {
     res.status(500).json({ message: 'タグに関連する投稿の取得に失敗しました。' });
   }
 });
-// 特定の投稿を取得
-router.get('/:id([0-9a-fA-F]{24})', async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id).populate('author').exec();
-    if (!post) {
-      return res.status(404).json({ message: '投稿が見つかりません。' });
-    }
-    res.json(post);
-  } catch (error) {
-    res.status(500).json({ message: '投稿の取得に失敗しました。' });
-  }
+//// 特定の投稿を取得
+//router.get('/:id([0-9a-fA-F]{24})', async (req, res) => {
+//  try {
+//    const post = await Post.findById(req.params.id).populate('author').exec();
+//    if (!post) {
+//      return res.status(404).json({ message: '投稿が見つかりません。' });
+//    }
+//    res.json(post);
+//  } catch (error) {
+//    res.status(500).json({ message: '投稿の取得に失敗しました。' });
+//  }
+//});
+// 新規投稿エンドポイント
+
+// 個別作品取得時のアクセス制御
+
+// 個別作品取得時のアクセス制御（詳細なログ付き）
+router.get('/:id([0-9a-fA-F]{24})', authenticateToken, async (req, res) => {
+ try {
+   const post = await Post.findById(req.params.id).populate('author').exec();
+   
+   if (!post) {
+     return res.status(404).json({ message: '投稿が見つかりません。' });
+   }
+
+   // 作者かどうかをチェック
+   const isAuthor = req.user && req.user._id && post.author && post.author._id && 
+                    req.user._id.toString() === post.author._id.toString();
+
+   // アクセス制御ロジック
+   if (post.publicityStatus === 'private' && !isAuthor) {
+     return res.status(403).json({ message: 'この作品にはアクセスできません。' });
+   }
+   
+   res.json(post);
+ } catch (error) {
+   console.error('作品取得エラー:', error);
+   res.status(500).json({ message: '投稿の取得に失敗しました。' });
+ }
 });
+
 // 新規投稿エンドポイント
 router.post('/', authenticateToken, async (req, res) => {
   const { 
@@ -337,18 +289,22 @@ router.post('/', authenticateToken, async (req, res) => {
     imageCount,  // 画像数を追加
     author, 
     series,
-    isPublic,    // 公開/非公開設定
+    publicityStatus,    // isPublic削除
     allowComments // コメント許可/禁止設定
   } = req.body;
-  console.log(adultContent)
+
+  console.log(adultContent);
+  
   // バリデーション
   if (!title || !content || !description || !tags || tags.length === 0 || original === null || adultContent === null) {
     return res.status(400).json({ message: 'すべてのフィールドに入力してください。' });
   }
+  
   // AIツール関連のバリデーション（aiGenerated は常にtrue）
   if (!aiEvidence || !aiEvidence.tools || aiEvidence.tools.length === 0 || !aiEvidence.description) {
     return res.status(400).json({ message: 'AI使用に関する情報は必須です。' });
   }
+  
   try {
     // 新しい投稿の作成
     const newPost = new Post({
@@ -365,11 +321,10 @@ router.post('/', authenticateToken, async (req, res) => {
         description: aiEvidence.description  // 使用説明
       },
       imageCount: imageCount || 0, // 画像数（指定がなければ0）
-
       wordCount: charCount,    // フィールド名を wordCount に変更
       author,
       series, // シリーズIDを追加
-      isPublic: isPublic !== undefined ? isPublic : true,  // デフォルトは公開
+      publicityStatus: publicityStatus || 'public',  // isPublic削除
       allowComments: allowComments !== undefined ? allowComments : true,  // デフォルトはコメント許可
       createdAt: new Date(),
       updatedAt: new Date()
@@ -395,7 +350,18 @@ router.post('/', authenticateToken, async (req, res) => {
 router.post('/:id([0-9a-fA-F]{24})/update', authenticateToken, async (req, res) => {
   try {
     const postId = req.params.id;
-    const { title, content, description, tags, original, adultContent, aiGenerated, charCount } = req.body;
+    const { 
+      title, 
+      content, 
+      description, 
+      tags, 
+      original, 
+      adultContent, 
+      aiGenerated, 
+      charCount,
+      publicityStatus, // isPublic削除
+      allowComments
+    } = req.body;
 
     // 投稿をデータベースから取得
     const post = await Post.findById(postId);
@@ -413,6 +379,9 @@ router.post('/:id([0-9a-fA-F]{24})/update', authenticateToken, async (req, res) 
     post.isAdultContent = adultContent;
     post.isAI = aiGenerated;
     post.wordCount = charCount;
+    post.publicityStatus = publicityStatus || post.publicityStatus; // isPublic削除
+    post.allowComments = allowComments !== undefined ? allowComments : post.allowComments;
+    
     // 更新内容を保存
     await post.save();
 
@@ -443,6 +412,7 @@ router.get('/:id([0-9a-fA-F]{24})/edit', authenticateToken, async (req, res) => 
 });
 
 
+// 検索エンドポイント
 router.get('/search', async (req, res) => {
   try {
     if (!esClient) {
@@ -452,10 +422,10 @@ router.get('/search', async (req, res) => {
 
     console.log('[INFO] 検索開始: ', req.query.mustInclude);
 
-    // 🌟 ページネーションのパラメータ
-    const page = parseInt(req.query.page) || 1;  // 1ページ目をデフォルト
-    const size = parseInt(req.query.size) || 10; // 1ページあたり10件 (デフォルト)
-    const from = (page - 1) * size; // スキップする件数
+    // ページネーションのパラメータ
+    const page = parseInt(req.query.page) || 1;
+    const size = parseInt(req.query.size) || 10;
+    const from = (page - 1) * size;
 
     const mustInclude = req.query.mustInclude || '';
     const shouldInclude = req.query.shouldInclude || '';
@@ -463,15 +433,24 @@ router.get('/search', async (req, res) => {
     const fields = req.query.fields ? req.query.fields.split(',') : ['title', 'content', 'tags'];
     const tagSearchType = req.query.tagSearchType || 'partial';
 
-    // 🔍 検索キーワードを分割
+    // 検索キーワードを分割
     const mustIncludeTerms = mustInclude.split(/\s+/).filter(term => term.trim() !== "");
     const shouldIncludeTerms = shouldInclude.split(/\s+/).filter(term => term.trim() !== "");
     const mustNotIncludeTerms = mustNotInclude.split(/\s+/).filter(term => term.trim() !== "");
 
-    // ✅ Elasticsearch のクエリ構築
-    let query = { bool: { must: [], should: [], must_not: [], filter: [] } };
+    // Elasticsearch のクエリ構築
+    let query = { 
+      bool: { 
+        must: [], 
+        should: [], 
+        must_not: [], 
+        filter: [
+          { term: { "publicityStatus": "public" } } // 公開のみを検索対象に
+        ]
+      } 
+    };
 
-    // 🎯 AND検索 (must)
+    // AND検索 (must)
     if (mustIncludeTerms.length > 0) {
       query.bool.must = mustIncludeTerms.map(term => ({
         multi_match: {
@@ -483,7 +462,7 @@ router.get('/search', async (req, res) => {
       }));
     }
 
-    // 🎯 OR検索 (should)
+    // OR検索 (should)
     if (shouldIncludeTerms.length > 0) {
       query.bool.should = shouldIncludeTerms.map(term => ({
         multi_match: {
@@ -495,7 +474,7 @@ router.get('/search', async (req, res) => {
       }));
     }
 
-    // 🎯 除外検索 (must_not)
+    // 除外検索 (must_not)
     if (mustNotIncludeTerms.length > 0) {
       query.bool.must_not = mustNotIncludeTerms.map(term => ({
         multi_match: {
@@ -506,13 +485,13 @@ router.get('/search', async (req, res) => {
       }));
     }
 
-    // 🔍 Elasticsearch 検索実行
+    // Elasticsearch 検索実行
     const response = await esClient.search({
       index: 'posts',
       body: {
         query,
-        from: from, // ✅ ページネーション
-        size: size, // ✅ 取得件数
+        from: from,
+        size: size,
         highlight: {  
           fields: {
             title: {},
@@ -523,7 +502,7 @@ router.get('/search', async (req, res) => {
     });
 
     const postIds = response.hits.hits.map(hit => hit._id);
-    const totalHits = response.hits.total.value; // 全件数を取得
+    const totalHits = response.hits.total.value;
 
     console.log(`[INFO] Elasticsearch から取得した _id の数: ${postIds.length}`);
 
@@ -531,10 +510,10 @@ router.get('/search', async (req, res) => {
       return res.json({ posts: [], total: 0, page, size });
     }
 
-    // 🔄 MongoDB からデータを取得
+    // MongoDB からデータを取得
     const posts = await Post.find({ _id: { $in: postIds } })
       .populate('author')
-      .populate('series')   // シリーズ情報を取得
+      .populate('series')
       .lean();
 
     console.log(`✅ MongoDB から取得したデータ数: ${posts.length}`);
@@ -552,34 +531,53 @@ router.get('/user/liked', authenticateToken, async (req, res) => {
   try {
     const userId = req.user._id;
     const likedPosts = await Good.find({ user: userId })
-    .populate({
-      path: 'post',
-      select: 'title description author series tags viewCounter goodCounter bookShelfCounter wordCount isAdultContent isAI isOriginal aiEvidence',
-      populate: [
-        {
-          path: 'author',
-          select: 'nickname icon'
+      .populate({
+        path: 'post',
+        match: { 
+          $or: [
+            { publicityStatus: 'public' },
+            { publicityStatus: 'limited' },
+            { author: userId } // 自分の作品は公開設定に関係なく表示
+          ]
         },
-        {
-          path: 'series',
-          select: 'title _id'
-        }
-      ]
-    });
+        select: 'title description author series tags viewCounter goodCounter bookShelfCounter wordCount isAdultContent isAI isOriginal aiEvidence publicityStatus',
+        populate: [
+          {
+            path: 'author',
+            select: 'nickname icon'
+          },
+          {
+            path: 'series',
+            select: 'title _id'
+          }
+        ]
+      });
 
-    res.status(200).json(likedPosts.map(good => good.post));
+    // nullでない投稿のみをフィルタリング
+    const validLikedPosts = likedPosts
+      .filter(good => good.post !== null)
+      .map(good => good.post);
+
+    res.status(200).json(validLikedPosts);
   } catch (error) {
     console.error('いいねした作品リストの取得に失敗しました:', error);
     res.status(500).json({ message: 'いいねした作品リストの取得に失敗しました。' });
   }
 });
 
-// server.js
+
+// いいね機能
 router.post('/:id([0-9a-fA-F]{24})/good', authenticateToken, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post) {
       return res.status(404).json({ message: '投稿が見つかりません。' });
+    }
+
+    // 非公開作品へのいいねは作者以外不可
+    const isAuthor = req.user._id.toString() === post.author.toString();
+    if (post.publicityStatus === 'private' && !isAuthor) {
+      return res.status(403).json({ message: 'この作品にはアクセスできません。' });
     }
 
     // 既にいいねしているかどうかを確認
@@ -598,23 +596,22 @@ router.post('/:id([0-9a-fA-F]{24})/good', authenticateToken, async (req, res) =>
       updatedGoodCounter = post.goodCounter + 1;
       await Post.findByIdAndUpdate(req.params.id, { goodCounter: updatedGoodCounter });
       await NotificationGenerator.generateLikeNotification(req.user._id, post);
-
     }
 
     res.json({ goodCounter: updatedGoodCounter, hasLiked: !existingGood });
-    console.log(req.user._id)
+    console.log(req.user._id);
 
   } catch (error) {
     console.error('Error toggling good:', error);
     res.status(500).json({ message: 'いいねのトグルに失敗しました。', error });
   }
 });
-// server.js
+
+// いいね状態確認
 router.get('/:id([0-9a-fA-F]{24})/isLiked', authenticateToken, async (req, res) => {
   try {
     const existingGood = await Good.findOne({ user: req.user._id, post: req.params.id });
     res.json({ hasLiked: !!existingGood });
-
 
   } catch (error) {
     console.error('Error checking like status:', error);

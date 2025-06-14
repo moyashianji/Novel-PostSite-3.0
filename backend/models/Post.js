@@ -44,7 +44,14 @@ const postSchema = new mongoose.Schema({
   isAI: { type: Boolean, default: true, required: true  },
   aiEvidence: { type: aiEvidenceSchema }, // AI証拠
   // 表示設定
-  isPublic: { type: Boolean, default: true }, // 公開/非公開設定
+
+  
+  publicityStatus: { 
+  type: String, 
+  enum: ['public', 'limited', 'private'], 
+  default: 'public' 
+},
+
   allowComments: { type: Boolean, default: true }, // コメント許可/禁止設定
   
   viewCounter: { type: Number, default: 0 }, // 閲覧数

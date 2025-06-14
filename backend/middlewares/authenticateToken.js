@@ -3,29 +3,38 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 const authenticateToken = (req, res, next) => {
-  const token = req.cookies.token;  // クッキー名が "token" であることを前提
+  const token = req.cookies.token;
 
   if (!token) {
-    return res.status(401).json({ message: 'トークンがありません' }); // トークンがない場合
+    // トークンがない場合はゲストとして続行
+    return next();
   }
 
   // トークンの検証
   jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
     if (err) {
-      return res.status(403).json({ message: '無効なトークンです' }); // トークンが無効な場合
+      // 無効なトークンでもゲストとして続行
+      return next();
     }
 
     try {
-      const user = await User.findById(decoded.id);
+      // JWTのペイロードからユーザーIDを取得（decoded.id または decoded.userId）
+      const userId = decoded.id || decoded.userId;
+      
+      if (!userId) {
+        return next();
+      }
+
+      const user = await User.findById(userId);
       if (!user) {
-        return res.status(404).json({ message: 'ユーザーが見つかりません' }); // ユーザーが見つからない場合
+        return next(); // ユーザーが見つからない場合もゲストとして続行
       }
 
       // ユーザー情報をリクエストに保存
       req.user = user;
       
       // 現在認証済みのユーザーID
-      req.authUserId = decoded.id;
+      req.authUserId = userId;
       
       // レスポンス送信前の処理をオーバーライド
       const originalJson = res.json;
@@ -48,7 +57,7 @@ const authenticateToken = (req, res, next) => {
       
       next(); // 次のミドルウェアへ
     } catch (error) {
-      return res.status(500).json({ message: 'サーバーエラーが発生しました' });
+      return next(); // エラーが発生してもゲストとして続行
     }
   });
 };

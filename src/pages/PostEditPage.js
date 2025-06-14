@@ -39,7 +39,6 @@ const PostEditPage = ({ user }) => {
   
   const author = useMemo(() => user ? user._id : null, [user]);
 
-  
   // フォーム状態
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -55,7 +54,7 @@ const PostEditPage = ({ user }) => {
   // 作品設定
   const [original, setOriginal] = useState(null);
   const [adultContent, setAdultContent] = useState(null);
-  const [isPublic, setIsPublic] = useState(true);
+  const [publicityStatus, setPublicityStatus] = useState('public'); // isPublic削除
   const [allowComments, setAllowComments] = useState(true);
   
   // シリーズ関連
@@ -81,6 +80,7 @@ const PostEditPage = ({ user }) => {
     tags: '',
     original: '',
     adultContent: '',
+    publicityStatus: '', // isPublic削除
     aiTools: '',
     aiDescription: ''
   });
@@ -89,12 +89,10 @@ const PostEditPage = ({ user }) => {
   useEffect(() => {
     const fetchPostDetails = async () => {
       setLoading(true);
-      const token = localStorage.getItem('token');
       
       try {
         const response = await fetch(`/api/posts/${id}/edit`, {
-          credentials: 'include',  // 認証情報を含めてリクエスト
-
+          credentials: 'include',
         });
         
         if (response.ok) {
@@ -117,7 +115,7 @@ const PostEditPage = ({ user }) => {
           // 公開設定を設定
           setOriginal(data.original !== undefined ? data.original : null);
           setAdultContent(data.adultContent !== undefined ? data.adultContent : null);
-          setIsPublic(data.isPublic !== undefined ? data.isPublic : true);
+          setPublicityStatus(data.publicityStatus || 'public'); // isPublic削除
           setAllowComments(data.allowComments !== undefined ? data.allowComments : true);
           
           // シリーズ情報
@@ -165,24 +163,23 @@ const PostEditPage = ({ user }) => {
       }
     };
 
+    const fetchSeriesList = async () => {
+      try {
+        const response = await fetch(`/api/series`, {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const seriesData = await response.json();
+          setSeriesList(seriesData);
+        }
+      } catch (error) {
+        console.error('Error fetching series list:', error);
+      }
+    };
+
     fetchPostDetails();
     fetchSeriesList();
   }, [id, navigate]);
-
-  // シリーズリストを取得
-  const fetchSeriesList = async () => {
-    try {
-      const response = await fetch(`/api/series`, {
-        credentials: 'include',
-      });
-      if (response.ok) {
-        const seriesData = await response.json();
-        setSeriesList(seriesData);
-      }
-    } catch (error) {
-      console.error('Error fetching series list:', error);
-    }
-  };
   
   // スクロール検出
   useEffect(() => {
@@ -208,6 +205,7 @@ const PostEditPage = ({ user }) => {
       tags: '',
       original: '',
       adultContent: '',
+      publicityStatus: '',
       aiTools: '',
       aiDescription: ''
     };
@@ -250,6 +248,12 @@ const PostEditPage = ({ user }) => {
       isValid = false;
     }
     
+    // 公開設定
+    if (!publicityStatus) {
+      newErrors.publicityStatus = '公開設定を選択してください';
+      isValid = false;
+    }
+    
     // AI生成
     if (aiGenerated === null) {
       newErrors.aiGenerated = 'AI生成かどうかを選択してください';
@@ -280,6 +284,7 @@ const PostEditPage = ({ user }) => {
     tags, 
     original, 
     adultContent, 
+    publicityStatus,
     aiGenerated, 
     usedAiTools, 
     aiEvidenceDescription
@@ -325,7 +330,7 @@ const PostEditPage = ({ user }) => {
         charCount,
         series: series || null,
         imageCount,
-        isPublic,
+        publicityStatus, // isPublic削除
         allowComments,
       };
 
@@ -334,10 +339,8 @@ const PostEditPage = ({ user }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-
         },
-        credentials: 'include',  // 認証情報を含めてリクエスト
-
+        credentials: 'include',
         body: JSON.stringify(updatedPostData),
       });
 
@@ -384,7 +387,7 @@ const PostEditPage = ({ user }) => {
     charCount, 
     series, 
     imageCount, 
-    isPublic, 
+    publicityStatus, // isPublic削除
     allowComments,
     id,
     navigate
@@ -483,8 +486,8 @@ const PostEditPage = ({ user }) => {
         setOriginal={setOriginal}
         adultContent={adultContent}
         setAdultContent={setAdultContent}
-        isPublic={isPublic}
-        setIsPublic={setIsPublic}
+        publicityStatus={publicityStatus} // isPublic削除
+        setPublicityStatus={setPublicityStatus} // isPublic削除
         allowComments={allowComments}
         setAllowComments={setAllowComments}
         formErrors={formErrors}

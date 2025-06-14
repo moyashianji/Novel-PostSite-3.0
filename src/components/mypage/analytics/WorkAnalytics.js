@@ -29,7 +29,11 @@ import {
   Comment as CommentIcon,
   TrendingUp as TrendingUpIcon,
   Schedule as ScheduleIcon,
-  DateRange as DateRangeIcon
+  DateRange as DateRangeIcon,
+  BarChart as BarChartIcon,
+  Timeline as TimelineIcon,
+  Analytics as AnalyticsIcon,
+  AccessTime as AccessTimeIcon
 } from '@mui/icons-material';
 import {
   LineChart,
@@ -205,7 +209,7 @@ const MainChart = memo(({
   theme 
 }) => {
   const chartContent = useMemo(() => {
-    console.log(`🎯 MainChart: timeframe=${timeframe}, データ数=${timeSeriesData.length}`);
+    console.log(`📊 MainChart: timeframe=${timeframe}, データ数=${timeSeriesData.length}`);
     
     if (timeSeriesData.length === 0) {
       console.log(`📊 ${timeframe}のデータが空のため、空のメッセージを表示`);
@@ -263,9 +267,12 @@ const MainChart = memo(({
 
   return (
     <Paper elevation={1} sx={{ p: 2, borderRadius: 2 }}>
-      <Typography variant="h6" fontWeight="bold" mb={2} color="text.primary">
-        📅 {title}
-      </Typography>
+      <Box display="flex" alignItems="center" gap={1} mb={2}>
+        <TimelineIcon color="primary" />
+        <Typography variant="h6" fontWeight="bold" color="text.primary">
+          {title}
+        </Typography>
+      </Box>
       {chartContent}
     </Paper>
   );
@@ -311,9 +318,12 @@ const HourlyChart = memo(({
   return (
     <Paper elevation={1} sx={{ p: 2, borderRadius: 2 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h6" fontWeight="bold" color="text.primary">
-          🕐 {selectedDateFormatted}の時間別閲覧数
-        </Typography>
+        <Box display="flex" alignItems="center" gap={1}>
+          <AccessTimeIcon color="primary" />
+          <Typography variant="h6" fontWeight="bold" color="text.primary">
+            {selectedDateFormatted}の時間別閲覧数
+          </Typography>
+        </Box>
       </Box>
       {chartContent}
     </Paper>
@@ -340,7 +350,14 @@ const WorkAnalytics = ({ postId, onClose }) => {
       
       console.log(`🔄 期間別データ取得開始: timeframe=${timeframe}`);
       
-      const response = await fetch(`/api/users/me/works/${postId}/analytics?timeframe=${timeframe}`, {
+      // 時間足の場合は過去24時間のデータを要求
+      let url = `/api/users/me/works/${postId}/analytics?timeframe=${timeframe}`;
+      if (timeframe === 'hour') {
+        // 過去24時間のデータを取得するためのフラグを追加
+        url += '&last24hours=true';
+      }
+      
+      const response = await fetch(url, {
         credentials: 'include'
       });
       
@@ -445,7 +462,22 @@ const WorkAnalytics = ({ postId, onClose }) => {
       return [];
     }
     
-    const data = analytics.timeSeriesData[timeframe] || [];
+    let data = analytics.timeSeriesData[timeframe] || [];
+    
+    // 時間足の場合は過去24時間のデータに制限
+    if (timeframe === 'hour') {
+      const now = new Date();
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      
+      data = data.filter(item => {
+        const itemDate = new Date(item.date || item.startTime);
+        return itemDate >= twentyFourHoursAgo && itemDate <= now;
+      });
+      
+      // 時間順にソート
+      data.sort((a, b) => new Date(a.date || a.startTime) - new Date(b.date || b.startTime));
+    }
+    
     console.log(`📊 ${timeframe}のデータ:`, data.length, '件');
     
     if (data.length === 0) {
@@ -460,7 +492,8 @@ const WorkAnalytics = ({ postId, onClose }) => {
       // 時間足ごとに適切な表示形式を設定
       switch (timeframe) {
         case 'hour':
-          name = `${date.getHours()}時`;
+          // 過去24時間の場合は「MM/DD HH時」形式
+          name = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}時`;
           break;
         case 'day':
           name = `${date.getMonth() + 1}/${date.getDate()}`;
@@ -497,7 +530,7 @@ const WorkAnalytics = ({ postId, onClose }) => {
 
   const chartTitle = useMemo(() => {
     const titles = {
-      hour: '時間別閲覧数（24時間）',
+      hour: '過去24時間の閲覧数推移',
       day: '日別閲覧数推移（最近30日）',
       week: '週別閲覧数推移（最近12週）',
       month: '月別閲覧数推移（最近12ヶ月）',
@@ -600,13 +633,16 @@ const WorkAnalytics = ({ postId, onClose }) => {
     >
       {/* ヘッダー */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Box>
-          <Typography variant="h5" fontWeight="bold" color="primary">
-            📊 作品アナリティクス
-          </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
-            {analytics?.postTitle}
-          </Typography>
+        <Box display="flex" alignItems="center" gap={1}>
+          <AnalyticsIcon color="primary" sx={{ fontSize: 32 }} />
+          <Box>
+            <Typography variant="h5" fontWeight="bold" color="primary">
+              作品アナリティクス
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
+              {analytics?.postTitle}
+            </Typography>
+          </Box>
         </Box>
         <IconButton 
           onClick={onClose} 
@@ -623,9 +659,12 @@ const WorkAnalytics = ({ postId, onClose }) => {
       <Divider sx={{ mb: 3 }} />
 
       {/* 基本統計 */}
-      <Typography variant="h6" fontWeight="bold" mb={2} color="text.primary">
-        📈 基本統計
-      </Typography>
+      <Box display="flex" alignItems="center" gap={1} mb={2}>
+        <TrendingUpIcon color="primary" />
+        <Typography variant="h6" fontWeight="bold" color="text.primary">
+          基本統計
+        </Typography>
+      </Box>
       <Grid container spacing={2} mb={4}>
         <Grid item xs={6} sm={3}>
           <StatCard

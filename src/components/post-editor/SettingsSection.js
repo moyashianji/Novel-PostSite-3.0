@@ -1,3 +1,4 @@
+// src/components/post-editor/SettingsSection.js
 import React, { memo, useCallback, useMemo } from 'react';
 import { 
   Grid,
@@ -15,8 +16,8 @@ const SettingsSection = ({
   setOriginal, 
   adultContent, 
   setAdultContent, 
-  isPublic, 
-  setIsPublic, 
+  publicityStatus, 
+  setPublicityStatus, 
   allowComments, 
   setAllowComments, 
   formErrors 
@@ -28,14 +29,14 @@ const SettingsSection = ({
   }, [setOriginal]);
 
   const handleAdultContentChange = useCallback((e) => {
-    // 修正: 'all'（全年齢）を選んだら false に、'r18' を選んだら true に設定
     setAdultContent(e.target.value === 'r18');
     console.log(`adultContent 変更: ${e.target.value} => ${e.target.value === 'r18'}`);
   }, [setAdultContent]);
 
-  const handlePublicStatusChange = useCallback((e) => {
-    setIsPublic(e.target.value === 'public');
-  }, [setIsPublic]);
+  const handlePublicityStatusChange = useCallback((e) => {
+    setPublicityStatus(e.target.value);
+    console.log(`publicityStatus 変更: ${e.target.value}`);
+  }, [setPublicityStatus]);
 
   const handleCommentsStatusChange = useCallback((e) => {
     setAllowComments(e.target.value === 'on');
@@ -54,8 +55,9 @@ const SettingsSection = ({
   ], []);
 
   // 公開設定のラジオボタンオプションをメモ化
-  const publicOptions = useMemo(() => [
+  const publicityOptions = useMemo(() => [
     { value: 'public', label: '公開' },
+    { value: 'limited', label: '限定公開' },
     { value: 'private', label: '非公開' }
   ], []);
 
@@ -96,7 +98,7 @@ const SettingsSection = ({
             <RadioContainer>
               <RadioButtonGroup 
                 legend="対象年齢"
-                value={adultContent === false ? 'all' : 'r18'}
+                value={adultContent === false ? 'all' : adultContent === true ? 'r18' : ''}
                 onChange={handleAdultContentChange}
                 options={adultContentOptions}
                 tooltip="全年齢向けの作品は誰でも閲覧できます。R18作品は成人向けコンテンツを含みます。"
@@ -114,12 +116,17 @@ const SettingsSection = ({
             <RadioContainer>
               <RadioButtonGroup 
                 legend="公開設定"
-                value={isPublic ? 'public' : 'private'}
-                onChange={handlePublicStatusChange}
-                options={publicOptions}
-                tooltip="公開を選択すると、すべてのユーザーが作品を閲覧できます。非公開の場合は、あなた以外見ることができません。"
+                value={publicityStatus || 'public'}
+                onChange={handlePublicityStatusChange}
+                options={publicityOptions}
+                tooltip="公開：検索結果に表示され、誰でも閲覧可能。限定公開：直接リンクを知っている人のみ閲覧可能。非公開：作者のみ閲覧可能。"
                 color="info"
               />
+              {formErrors?.publicityStatus && (
+                <Typography variant="caption" color="error">
+                  {formErrors.publicityStatus}
+                </Typography>
+              )}
             </RadioContainer>
           </Grid>
           

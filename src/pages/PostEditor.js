@@ -41,7 +41,7 @@ const PostEditor = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isMediumScreen = useMediaQuery(theme.breakpoints.down('md'));
-    const {user } = useAuth();
+  const { user } = useAuth();
   
   const author = useMemo(() => user ? user._id : null, [user]);
   
@@ -59,7 +59,7 @@ const PostEditor = () => {
   // 作品設定
   const [original, setOriginal] = useState(null);
   const [adultContent, setAdultContent] = useState(false);
-  const [isPublic, setIsPublic] = useState(true);
+  const [publicityStatus, setPublicityStatus] = useState('public'); // isPublic削除
   const [allowComments, setAllowComments] = useState(true);
   
   // シリーズ関連
@@ -85,6 +85,7 @@ const PostEditor = () => {
     tags: '',
     original: '',
     adultContent: '',
+    publicityStatus: '', // isPublic削除
     aiTools: '',
     aiDescription: ''
   });
@@ -144,6 +145,7 @@ const PostEditor = () => {
       tags: '',
       original: '',
       adultContent: '',
+      publicityStatus: '',
       aiTools: '',
       aiDescription: ''
     };
@@ -186,6 +188,12 @@ const PostEditor = () => {
       isValid = false;
     }
     
+    // 公開設定
+    if (!publicityStatus) {
+      newErrors.publicityStatus = '公開設定を選択してください';
+      isValid = false;
+    }
+    
     // AIツール
     if (usedAiTools.length === 0) {
       newErrors.aiTools = '少なくとも1つのAIツールを追加してください';
@@ -200,30 +208,23 @@ const PostEditor = () => {
     
     setFormErrors(newErrors);
     return isValid;
-  }, [title, content, description, tags, original, adultContent, usedAiTools, aiEvidenceDescription]);
+  }, [title, content, description, tags, original, adultContent, publicityStatus, usedAiTools, aiEvidenceDescription]);
 
-  // 送信ハンドラをメモ化
+  // 投稿処理
   const handleSubmit = useCallback(async () => {
-    // バリデーションチェック
     if (!validateForm()) {
       setFeedback({
         open: true,
-        message: '入力内容に問題があります。必須項目を確認してください。',
+        message: '入力内容にエラーがあります。確認してください。',
         type: 'error'
       });
-      
-      // エラーのある最初のフィールドまでスクロール
-      const errorFields = document.querySelectorAll('.Mui-error');
-      if (errorFields.length > 0) {
-        errorFields[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
       return;
     }
 
-    if (!user || !user._id) {
+    if (!user) {
       setFeedback({
         open: true,
-        message: 'ユーザー情報が見つかりません。再ログインしてください。',
+        message: 'ログインしてください。',
         type: 'error'
       });
       return;
@@ -255,7 +256,7 @@ const PostEditor = () => {
         author,
         series: series || null,
         imageCount,
-        isPublic,
+        publicityStatus, // isPublic削除
         allowComments,
       };
 
@@ -290,7 +291,7 @@ const PostEditor = () => {
           type: 'success'
         });
         
-        // 成功後、ホームページに遷移（少し遅延させる）
+        // 成功後、ホームページに遷移
         setTimeout(() => {
           navigate('/');
         }, 1500);
@@ -327,7 +328,7 @@ const PostEditor = () => {
     author, 
     series, 
     imageCount, 
-    isPublic, 
+    publicityStatus, // isPublic削除
     allowComments, 
     navigate
   ]);
@@ -460,13 +461,13 @@ const PostEditor = () => {
       />
       
       {/* 設定セクション */}
-      <SettingsSection 
+      <SettingsSection
         original={original}
         setOriginal={setOriginal}
         adultContent={adultContent}
         setAdultContent={setAdultContent}
-        isPublic={isPublic}
-        setIsPublic={setIsPublic}
+        publicityStatus={publicityStatus} // isPublic削除
+        setPublicityStatus={setPublicityStatus} // isPublic削除
         allowComments={allowComments}
         setAllowComments={setAllowComments}
         formErrors={formErrors}

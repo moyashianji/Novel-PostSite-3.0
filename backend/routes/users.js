@@ -634,11 +634,13 @@ router.get('/:userId([0-9a-fA-F]{24})/activity', async (req, res) => {
 
 // backend/routes/users.js の投稿のアナリティクス取得エンドポイントを修正
 
+// backend/routes/users.js のアナリティクス取得エンドポイント部分の修正
+
 // 投稿のアナリティクス取得エンドポイント
 router.get('/me/works/:postId/analytics', authenticateToken, async (req, res) => {
   try {
     const { postId } = req.params;
-    const { timeframe = 'day', date } = req.query;
+    const { timeframe = 'day', date, last24hours } = req.query;
     const userId = req.user._id;
 
     // 投稿が自分のものか確認
@@ -673,21 +675,34 @@ router.get('/me/works/:postId/analytics', authenticateToken, async (req, res) =>
       const periods = ['hour', 'day', 'week', 'month', 'year'];
       
       periods.forEach(period => {
-        // 該当期間のデータをフィルタリングしてソート
-        const periodData = viewAnalytics.timeWindows
+        let periodData = viewAnalytics.timeWindows
           .filter(window => window.period === period)
-          .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
-          .map(window => ({
-            date: window.startTime.toISOString(),
-            startTime: window.startTime.toISOString(),
-            views: window.totalViews || 0,
-            totalViews: window.totalViews || 0,
-            uniqueUsers: window.uniqueUsers || 0
-          }));
+          .sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
 
-        if (periodData.length > 0) {
-          timeSeriesData[period] = periodData;
-          console.log(`📈 ${period}: ${periodData.length}件のデータ`);
+        // 時間足の場合で last24hours フラグがある場合は過去24時間に制限
+        if (period === 'hour' && last24hours) {
+          const now = new Date();
+          const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          
+          periodData = periodData.filter(window => {
+            const windowDate = new Date(window.startTime);
+            return windowDate >= twentyFourHoursAgo && windowDate <= now;
+          });
+          
+          console.log(`⏰ 過去24時間のhourデータに制限: ${periodData.length}件`);
+        }
+
+        const formattedData = periodData.map(window => ({
+          date: window.startTime.toISOString(),
+          startTime: window.startTime.toISOString(),
+          views: window.totalViews || 0,
+          totalViews: window.totalViews || 0,
+          uniqueUsers: window.uniqueUsers || 0
+        }));
+
+        if (formattedData.length > 0) {
+          timeSeriesData[period] = formattedData;
+          console.log(`📈 ${period}: ${formattedData.length}件のデータ`);
         }
       });
 
@@ -780,4 +795,6 @@ function getDataLimit(timeframe) {
   };
   return limits[timeframe] || 30;
 }
+
+
 module.exports = router;

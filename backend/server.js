@@ -137,6 +137,8 @@ mongoose.connect('mongodb://host.docker.internal:27017/novel-site')
   .then(async () => {
     console.log('✅ MongoDB connected');
     //await migrateSeriesToElasticsearch();
+        await initializePublicityStatus();
+
   })
   .catch(err => console.error('❌ MongoDB connection error:', err));
 
@@ -168,6 +170,63 @@ app.use('/api/trending', trendingRoutes);
 app.use('/api', seriesFollowRoutes); // シリーズフォロールート追加
 app.use('/api/total', totalRankingRoutes);
 app.use('/api/views', viewsRoutes);  // ←ここに追加
+// publicityStatus初期化関数を追加（startServer関数の前に配置）
+/**
+ * publicityStatusフィールドの初期化
+ */
+async function initializePublicityStatus() {
+  try {
+    console.log('🔄 publicityStatus フィールドの初期化中...');
+    
+    // publicityStatusフィールドがない作品を検索
+    const postsWithoutPublicityStatus = await Post.find({
+      publicityStatus: { $exists: false }
+    }).select('_id isPublic').lean();
+    
+    if (postsWithoutPublicityStatus.length === 0) {
+      console.log('✅ 全ての作品に publicityStatus フィールドが存在します');
+      return;
+    }
+    
+    console.log(`📝 ${postsWithoutPublicityStatus.length}件の作品に publicityStatus を追加中...`);
+    
+    // バッチ処理で効率的に更新
+    const bulkOps = postsWithoutPublicityStatus.map(post => {
+      let publicityStatus = 'public'; // デフォルト値
+      
+      // isPublicフィールドが存在する場合はそれを基に判断
+      if (post.isPublic !== undefined) {
+        publicityStatus = post.isPublic ? 'public' : 'private';
+      }
+      
+      return {
+        updateOne: {
+          filter: { _id: post._id },
+          update: { 
+            $set: { publicityStatus },
+            $unset: { isPublic: "" } // isPublicフィールドを削除
+          }
+        }
+      };
+    });
+    
+    // バッチ実行
+    const result = await Post.bulkWrite(bulkOps);
+    
+    console.log(`✅ publicityStatus 初期化完了: ${result.modifiedCount}件更新`);
+    
+    // 統計情報を表示
+    const publicCount = await Post.countDocuments({ publicityStatus: 'public' });
+    const privateCount = await Post.countDocuments({ publicityStatus: 'private' });
+    const limitedCount = await Post.countDocuments({ publicityStatus: 'limited' });
+    
+    console.log(`📊 公開設定統計: 公開=${publicCount}件, 非公開=${privateCount}件, 限定公開=${limitedCount}件`);
+    
+  } catch (error) {
+    console.error('❌ publicityStatus 初期化エラー:', error);
+    // エラーがあってもサーバー起動は継続
+  }
+}
 
 // サーバー起動時に初期化
 const startServer = async () => {

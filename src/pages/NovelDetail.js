@@ -101,8 +101,13 @@ const NovelDetail = () => {
 
     const fetchPost = async () => {
       try {
-        const response = await fetch(`/api/posts/${id}`);
-
+      const response = await fetch(`/api/posts/${id}`, {
+        method: 'GET',
+        credentials: 'include', // 認証情報を含める
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
         if (!response.ok) {
           throw new Error(`小説の取得に失敗しました。ステータス: ${response.status}`);
         }
