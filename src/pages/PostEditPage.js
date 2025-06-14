@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Box, 
   Button, 
@@ -20,22 +20,23 @@ import {
 } from '@mui/icons-material';
 
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 // 共通コンポーネントと設定をインポート
 import { SubmitArea, ScrollTopButton } from '../components/post-editor/ui/StyledComponents';
 
-// 編集用に修正したセクションコンポーネントをインポート
+// セクションコンポーネントをインポート
 import BasicInfoSection from '../components/post-editor/BasicInfoSection';
 import ContentSection from '../components/post-editor/ContentSection';
 import SettingsSection from '../components/post-editor/SettingsSection';
 import AiInfoSection from '../components/post-editor/AiInfoSection';
 
-const PostEditPage = ({ user }) => {
+const PostEditPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isMediumScreen = useMediaQuery(theme.breakpoints.down('md'));
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   
   const author = useMemo(() => user ? user._id : null, [user]);
 
@@ -45,8 +46,7 @@ const PostEditPage = ({ user }) => {
   const [tags, setTags] = useState([]);
   const [description, setDescription] = useState('');
   
-  // AI関連
-  const [aiGenerated, setAiGenerated] = useState(null);
+  // AI関連（AI生成は常にtrueとして扱う）
   const [usedAiTools, setUsedAiTools] = useState([]);
   const [aiEvidenceUrl, setAiEvidenceUrl] = useState('');
   const [aiEvidenceDescription, setAiEvidenceDescription] = useState('');
@@ -54,7 +54,7 @@ const PostEditPage = ({ user }) => {
   // 作品設定
   const [original, setOriginal] = useState(null);
   const [adultContent, setAdultContent] = useState(null);
-  const [publicityStatus, setPublicityStatus] = useState('public'); // isPublic削除
+  const [publicityStatus, setPublicityStatus] = useState('public');
   const [allowComments, setAllowComments] = useState(true);
   
   // シリーズ関連
@@ -70,7 +70,7 @@ const PostEditPage = ({ user }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scrollVisible, setScrollVisible] = useState(false);
   const [feedback, setFeedback] = useState({ open: false, message: '', type: 'success' });
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
   
   // エラー状態
   const [formErrors, setFormErrors] = useState({
@@ -80,15 +80,28 @@ const PostEditPage = ({ user }) => {
     tags: '',
     original: '',
     adultContent: '',
-    publicityStatus: '', // isPublic削除
+    publicityStatus: '',
     aiTools: '',
     aiDescription: ''
   });
   
+  // フィードバッククローズハンドラ
+  const handleCloseFeedback = useCallback(() => {
+    setFeedback({ ...feedback, open: false });
+  }, [feedback]);
+
   // 投稿の詳細を取得
   useEffect(() => {
+    // ログイン状態とロード状態をチェック
+    if (authLoading) return;
+    
+    if (!isAuthenticated || !user) {
+      navigate('/login');
+      return;
+    }
+
     const fetchPostDetails = async () => {
-      setLoading(true);
+      setDataLoading(true);
       
       try {
         const response = await fetch(`/api/posts/${id}/edit`, {
@@ -104,82 +117,90 @@ const PostEditPage = ({ user }) => {
           setTags(data.tags || []);
           setDescription(data.description || '');
           
-          // AIの情報を設定
-          setAiGenerated(data.aiGenerated || false);
+          // AI情報を設定（常にAI生成として扱う）
           if (data.aiEvidence) {
             setUsedAiTools(data.aiEvidence.tools || []);
             setAiEvidenceUrl(data.aiEvidence.url || '');
             setAiEvidenceDescription(data.aiEvidence.description || '');
           }
           
-          // 公開設定を設定
+          // 作品設定を設定
           setOriginal(data.original !== undefined ? data.original : null);
           setAdultContent(data.adultContent !== undefined ? data.adultContent : null);
-          setPublicityStatus(data.publicityStatus || 'public'); // isPublic削除
+          setPublicityStatus(data.publicityStatus || 'public');
           setAllowComments(data.allowComments !== undefined ? data.allowComments : true);
           
-          // シリーズ情報
+          // シリーズ情報の修正 - より詳細なデバッグとフォールバック
+          console.log('Series data from API:', data.series);
           if (data.series) {
-            setSeries(data.series);
+            if (typeof data.series === 'object' && data.series._id) {
+              // シリーズがオブジェクトの場合
+              setSeries(data.series._id);
+              console.log('Set series ID (object):', data.series._id);
+            } else if (typeof data.series === 'string') {
+              // シリーズがIDの場合
+              setSeries(data.series);
+              console.log('Set series ID (string):', data.series);
+            } else {
+              console.warn('Unexpected series data format:', data.series);
+            }
+          } else {
+            console.log('No series data found');
           }
           
           // 統計情報
-          setCharCount(data.content ? data.content.replace(/<[^>]*>/g, '').length : 0);
-          setDescCharCount(data.description ? data.description.length : 0);
+          setCharCount(data.content ? data.content.length : 0);
           setImageCount(data.imageCount || 0);
+          setDescCharCount(data.description ? data.description.length : 0);
           
+        } else if (response.status === 403) {
           setFeedback({
             open: true,
-            message: '投稿情報を読み込みました',
-            type: 'success'
-          });
-        } else if (response.status === 302) {
-          const data = await response.json();
-          navigate(data.redirectUrl);
-          setFeedback({
-            open: true,
-            message: 'リダイレクトします',
-            type: 'info'
-          });
-        } else {
-          console.error('Failed to fetch post details');
-          navigate('/mypage');
-          setFeedback({
-            open: true,
-            message: '投稿の取得に失敗しました',
+            message: 'この作品を編集する権限がありません。',
             type: 'error'
           });
+          navigate('/');
+        } else {
+          throw new Error('作品の取得に失敗しました');
         }
       } catch (error) {
         console.error('Error fetching post details:', error);
-        navigate('/mypage');
         setFeedback({
           open: true,
-          message: 'エラーが発生しました',
+          message: '作品の取得に失敗しました。',
           type: 'error'
         });
+        navigate('/');
       } finally {
-        setLoading(false);
+        setDataLoading(false);
       }
     };
 
-    const fetchSeriesList = async () => {
+    // シリーズリストを取得
+    const fetchSeries = async () => {
       try {
-        const response = await fetch(`/api/series`, {
+        console.log('Fetching series list...');
+        const response = await fetch('/api/series', {
           credentials: 'include',
         });
+        
         if (response.ok) {
-          const seriesData = await response.json();
-          setSeriesList(seriesData);
+          const data = await response.json();
+          console.log('Series list received:', data);
+          setSeriesList(data || []);
+        } else {
+          console.error('Failed to fetch series:', response.status);
+          setSeriesList([]);
         }
       } catch (error) {
-        console.error('Error fetching series list:', error);
+        console.error('Error fetching series:', error);
+        setSeriesList([]);
       }
     };
 
     fetchPostDetails();
-    fetchSeriesList();
-  }, [id, navigate]);
+    fetchSeries();
+  }, [id, navigate, user, isAuthenticated, authLoading]);
   
   // スクロール検出
   useEffect(() => {
@@ -196,7 +217,18 @@ const PostEditPage = ({ user }) => {
     setDescCharCount(description.length);
   }, [description]);
 
-  // フォーム検証ロジックをメモ化
+  // デバッグ用: シリーズ状態の変化を監視
+  useEffect(() => {
+    console.log('Series state changed:', series);
+    console.log('Series list:', seriesList);
+  }, [series, seriesList]);
+
+  // スクロールトップハンドラ
+  const handleScrollTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  // フォーム検証ロジック
   const validateForm = useCallback(() => {
     const newErrors = {
       title: '',
@@ -206,6 +238,7 @@ const PostEditPage = ({ user }) => {
       original: '',
       adultContent: '',
       publicityStatus: '',
+      aiGenerated: '',
       aiTools: '',
       aiDescription: ''
     };
@@ -254,25 +287,16 @@ const PostEditPage = ({ user }) => {
       isValid = false;
     }
     
-    // AI生成
-    if (aiGenerated === null) {
-      newErrors.aiGenerated = 'AI生成かどうかを選択してください';
+    // AIツール（常に必須）
+    if (usedAiTools.length === 0) {
+      newErrors.aiTools = '少なくとも1つのAIツールを追加してください';
       isValid = false;
     }
     
-    // AIで生成された場合のみAI関連の検証を行う
-    if (aiGenerated) {
-      // AIツール
-      if (usedAiTools.length === 0) {
-        newErrors.aiTools = '少なくとも1つのAIツールを追加してください';
-        isValid = false;
-      }
-      
-      // AI説明
-      if (!aiEvidenceDescription.trim()) {
-        newErrors.aiDescription = 'AI使用の説明を入力してください';
-        isValid = false;
-      }
+    // AI説明（常に必須）
+    if (!aiEvidenceDescription.trim()) {
+      newErrors.aiDescription = 'AI使用の説明を入力してください';
+      isValid = false;
     }
     
     setFormErrors(newErrors);
@@ -285,12 +309,11 @@ const PostEditPage = ({ user }) => {
     original, 
     adultContent, 
     publicityStatus,
-    aiGenerated, 
     usedAiTools, 
     aiEvidenceDescription
   ]);
 
-  // 送信ハンドラをメモ化
+  // 送信ハンドラ
   const handleSubmit = useCallback(async () => {
     // バリデーションチェック
     if (!validateForm()) {
@@ -311,12 +334,12 @@ const PostEditPage = ({ user }) => {
     setIsSubmitting(true);
     
     try {
-      // AI証拠データの準備
-      const aiEvidenceData = aiGenerated ? {
+      // AI証拠データの準備（常にAI生成として扱う）
+      const aiEvidenceData = {
         tools: usedAiTools,
         url: aiEvidenceUrl || null,
         description: aiEvidenceDescription
-      } : null;
+      };
       
       const updatedPostData = {
         title,
@@ -325,12 +348,12 @@ const PostEditPage = ({ user }) => {
         tags,
         original,
         adultContent,
-        aiGenerated,
+        aiGenerated: true, // 常にtrueとして送信
         aiEvidence: aiEvidenceData,
         charCount,
         series: series || null,
         imageCount,
-        publicityStatus, // isPublic削除
+        publicityStatus,
         allowComments,
       };
 
@@ -356,9 +379,10 @@ const PostEditPage = ({ user }) => {
           navigate(`/novel/${id}`);
         }, 1500);
       } else {
+        const errorData = await response.json();
         setFeedback({
           open: true,
-          message: '投稿の更新に失敗しました。',
+          message: errorData.message || '投稿の更新に失敗しました。',
           type: 'error'
         });
       }
@@ -380,75 +404,87 @@ const PostEditPage = ({ user }) => {
     tags, 
     original, 
     adultContent, 
-    aiGenerated,
     usedAiTools, 
     aiEvidenceUrl, 
     aiEvidenceDescription, 
     charCount, 
     series, 
     imageCount, 
-    publicityStatus, // isPublic削除
+    publicityStatus,
     allowComments,
     id,
     navigate
   ]);
 
-  // スクロールトップハンドラ
-  const handleScrollTop = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
-
-  // フィードバック閉じるハンドラ
-  const handleCloseFeedback = useCallback(() => {
-    setFeedback(prev => ({ ...prev, open: false }));
-  }, []);
-
-  if (loading) {
+  // 認証ローディング中の表示
+  if (authLoading) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-        <CircularProgress size={60} />
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
+
+  // データローディング中の表示
+  if (dataLoading) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <CircularProgress />
+        </Box>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container 
+      maxWidth="lg" 
+      sx={{ 
+        py: { xs: 2, md: 4 },
+        px: { xs: 1, md: 3 }
+      }}
+    >
+      {/* ヘッダーセクション */}
       <Paper 
         elevation={2} 
         sx={{ 
-          p: 3, 
-          borderRadius: 3, 
-          mb: 4, 
-          background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
+          p: { xs: 2, md: 4 },
+          mb: 3,
+          borderRadius: 3,
+          background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+          border: '1px solid',
+          borderColor: 'divider'
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <EditIcon sx={{ mr: 2, color: 'primary.main', fontSize: 32 }} />
           <Typography 
-            variant="h4" 
-            component="h1" 
-            gutterBottom
+            variant={isMobile ? "h5" : "h4"} 
+            fontWeight="bold" 
             sx={{ 
-              fontWeight: 'bold',
-              display: 'flex',
-              alignItems: 'center'
+              background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
             }}
           >
-            <EditIcon sx={{ mr: 1, color: 'primary.main' }} />
-            作品の編集
+            作品を編集
           </Typography>
-          
-          <Button
-            variant="outlined"
-            color="inherit"
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <Button 
+            variant="outlined" 
             startIcon={<ArrowBackIcon />}
             onClick={() => navigate(`/novel/${id}`)}
             sx={{ borderRadius: 2 }}
           >
-            キャンセル
+            作品詳細に戻る
           </Button>
         </Box>
-        <Typography variant="subtitle1" color="text.secondary">
-          作品の内容を編集してください
+        <Typography variant="subtitle1" color="text.secondary" sx={{ mt: 2 }}>
+          作品の内容を編集して更新しましょう
         </Typography>
       </Paper>
       
@@ -486,27 +522,25 @@ const PostEditPage = ({ user }) => {
         setOriginal={setOriginal}
         adultContent={adultContent}
         setAdultContent={setAdultContent}
-        publicityStatus={publicityStatus} // isPublic削除
-        setPublicityStatus={setPublicityStatus} // isPublic削除
+        publicityStatus={publicityStatus}
+        setPublicityStatus={setPublicityStatus}
         allowComments={allowComments}
         setAllowComments={setAllowComments}
         formErrors={formErrors}
       />
       
-      {/* AI情報セクション - AI生成の場合のみ表示 */}
-      {aiGenerated && (
-        <AiInfoSection 
-          usedAiTools={usedAiTools}
-          setUsedAiTools={setUsedAiTools}
-          aiEvidenceUrl={aiEvidenceUrl}
-          setAiEvidenceUrl={setAiEvidenceUrl}
-          aiEvidenceDescription={aiEvidenceDescription}
-          setAiEvidenceDescription={setAiEvidenceDescription}
-          formErrors={formErrors}
-        />
-      )}
+      {/* AI情報セクション - 常に表示 */}
+      <AiInfoSection 
+        usedAiTools={usedAiTools}
+        setUsedAiTools={setUsedAiTools}
+        aiEvidenceUrl={aiEvidenceUrl}
+        setAiEvidenceUrl={setAiEvidenceUrl}
+        aiEvidenceDescription={aiEvidenceDescription}
+        setAiEvidenceDescription={setAiEvidenceDescription}
+        formErrors={formErrors}
+      />
       
-      {/* 投稿ボタンエリア */}
+      {/* 更新ボタンエリア */}
       <SubmitArea>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <Typography variant="body1" fontWeight="medium">

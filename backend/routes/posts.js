@@ -346,10 +346,10 @@ router.post('/', authenticateToken, async (req, res) => {
     res.status(500).json({ message: '投稿に失敗しました。', error: error.message });
   }
 });
-// 特定の投稿を更新するエンドポイント
 router.post('/:id([0-9a-fA-F]{24})/update', authenticateToken, async (req, res) => {
   try {
     const postId = req.params.id;
+    const userId = req.user._id;
     const { 
       title, 
       content, 
@@ -358,59 +358,243 @@ router.post('/:id([0-9a-fA-F]{24})/update', authenticateToken, async (req, res) 
       original, 
       adultContent, 
       aiGenerated, 
+      aiEvidence,
       charCount,
-      publicityStatus, // isPublic削除
+      series,
+      imageCount,
+      publicityStatus,
       allowComments
     } = req.body;
 
-    // 投稿をデータベースから取得
-    const post = await Post.findById(postId);
+    console.log('Update request body:', req.body);
 
-    if (!post) {
-      return res.status(404).json({ message: '投稿が見つかりませんでした。' });
-    }
-
-    // 投稿の各フィールドを更新
-    post.title = title || post.title;
-    post.content = content || post.content;
-    post.description = description || post.description;
-    post.tags = tags || post.tags;
-    post.isOriginal = original;
-    post.isAdultContent = adultContent;
-    post.isAI = aiGenerated;
-    post.wordCount = charCount;
-    post.publicityStatus = publicityStatus || post.publicityStatus; // isPublic削除
-    post.allowComments = allowComments !== undefined ? allowComments : post.allowComments;
-    
-    // 更新内容を保存
-    await post.save();
-
-    res.status(200).json({ message: '投稿が更新されました。', post });
-  } catch (error) {
-    console.error('Error updating post:', error);
-    res.status(500).json({ message: '投稿の更新に失敗しました。' });
-  }
-});
-// 特定の投稿の詳細を取得するエンドポイント
-router.get('/:id([0-9a-fA-F]{24})/edit', authenticateToken, async (req, res) => {
-  try {
-    const postId = req.params.id;
-    const userId = req.user._id; // 認証されたユーザーのIDを取得
-
-    // 投稿を探し、かつその投稿のauthorが現在のユーザーであるかを確認
+    // 投稿をデータベースから取得し、認証チェック
     const post = await Post.findOne({ _id: postId, author: userId });
 
     if (!post) {
-      return res.status(404).json({ message: '投稿が見つかりませんでした。' });
+      return res.status(404).json({ message: '投稿が見つかりませんでした。または編集権限がありません。' });
     }
 
-    res.status(200).json(post);
+    // バリデーション
+    if (!title || !title.trim()) {
+      return res.status(400).json({ message: 'タイトルは必須です。' });
+    }
+    
+    if (!content || !content.trim()) {
+      return res.status(400).json({ message: 'コンテンツは必須です。' });
+    }
+    
+    if (!description || !description.trim()) {
+      return res.status(400).json({ message: '作品説明は必須です。' });
+    }
+    
+    if (!tags || !Array.isArray(tags) || tags.length === 0) {
+      return res.status(400).json({ message: 'タグは少なくとも1つ必要です。' });
+    }
+    
+    if (original === null || original === undefined) {
+      return res.status(400).json({ message: 'オリジナル作品の設定は必須です。' });
+    }
+    
+    if (adultContent === null || adultContent === undefined) {
+      return res.status(400).json({ message: '年齢制限の設定は必須です。' });
+    }
+    
+    if (aiGenerated === null || aiGenerated === undefined) {
+      return res.status(400).json({ message: 'AI生成の設定は必須です。' });
+    }
+
+    // AI生成の場合、AI関連情報のバリデーション
+    if (aiGenerated) {
+      if (!aiEvidence || !aiEvidence.tools || !Array.isArray(aiEvidence.tools) || aiEvidence.tools.length === 0) {
+        return res.status(400).json({ message: 'AI生成の場合、使用したAIツールの情報は必須です。' });
+      }
+      
+      if (!aiEvidence.description || !aiEvidence.description.trim()) {
+        return res.status(400).json({ message: 'AI生成の場合、使用説明は必須です。' });
+      }
+    }
+
+    // 既存のシリーズから削除（シリーズが変更された場合）
+    if (post.series && post.series.toString() !== (series || '')) {
+      try {
+        await Series.findByIdAndUpdate(
+          post.series, 
+          { $pull: { posts: { postId: postId } } }
+        );
+      } catch (error) {
+        console.warn('旧シリーズからの削除でエラー:', error);
+      }
+    }
+
+    // 投稿の各フィールドを更新
+    post.title = title.trim();
+    post.content = content;
+    post.description = description.trim();
+    post.tags = tags;
+    post.isOriginal = Boolean(original);
+    post.isAdultContent = Boolean(adultContent);
+    post.isAI = Boolean(aiGenerated);
+    
+    // AI証拠情報の更新
+    if (aiGenerated && aiEvidence) {
+      post.aiEvidence = {
+        tools: aiEvidence.tools,
+        url: aiEvidence.url || null,
+        description: aiEvidence.description
+      };
+    } else if (!aiGenerated) {
+      // AI生成でない場合はaiEvidenceをクリア
+      post.aiEvidence = null;
+    }
+    
+    post.wordCount = charCount || 0;
+    post.imageCount = imageCount || 0;
+    post.publicityStatus = publicityStatus || 'public';
+    post.allowComments = allowComments !== undefined ? Boolean(allowComments) : true;
+    post.series = series || null;
+    post.updatedAt = new Date();
+
+    // 更新内容を保存（これでpost('save')フックが発火してES更新される）
+    await post.save();
+
+    // Elasticsearchに手動で更新を送信（保険として）
+    try {
+      const { getEsClient } = require('../utils/esClient');
+      const sanitizeHtml = require('sanitize-html');
+      const esClient = getEsClient();
+      
+      if (esClient) {
+        const cleanContent = sanitizeHtml(post.content, {
+          allowedTags: [],
+          allowedAttributes: {}
+        });
+        
+        const esBody = {
+          title: post.title,
+          content: cleanContent,
+          description: post.description,
+          tags: post.tags || [],
+          author: post.author.toString(),
+          createdAt: post.createdAt,
+          updatedAt: post.updatedAt
+        };
+
+        // aiEvidenceフィールドがある場合は追加
+        if (post.aiEvidence) {
+          esBody.aiEvidence = {
+            tools: post.aiEvidence.tools || [],
+            url: post.aiEvidence.url || '',
+            description: post.aiEvidence.description || ''
+          };
+        }
+
+        await esClient.index({
+          index: 'posts',
+          id: post._id.toString(),
+          body: esBody,
+        });
+        
+        console.log('✅ Post updated in Elasticsearch:', post._id);
+      }
+    } catch (esError) {
+      console.warn('⚠️ Elasticsearch update failed (but MongoDB updated):', esError.message);
+    }
+
+    // 新しいシリーズに追加（シリーズが指定された場合）
+    if (series && series !== post.series) {
+      try {
+        const seriesDoc = await Series.findById(series);
+        if (seriesDoc) {
+          // 重複チェック
+          const existingPost = seriesDoc.posts.find(p => p.postId && p.postId.toString() === postId);
+          if (!existingPost) {
+            // エピソード番号を設定（既存の最大値 + 1）
+            const maxEpisode = seriesDoc.posts.length > 0 
+              ? Math.max(...seriesDoc.posts.map(p => p.episodeNumber || 0)) 
+              : 0;
+            
+            seriesDoc.posts.push({
+              postId: postId,
+              episodeNumber: maxEpisode + 1
+            });
+            await seriesDoc.save();
+          }
+        }
+      } catch (error) {
+        console.warn('新シリーズへの追加でエラー:', error);
+      }
+    }
+
+    // 更新された投稿を返す
+    const updatedPost = await Post.findById(postId)
+      .populate('author', 'nickname')
+      .populate('series', 'title');
+
+    res.status(200).json({ 
+      message: '投稿が更新されました。', 
+      post: updatedPost 
+    });
+
   } catch (error) {
-    console.error('Error fetching post details:', error);
-    res.status(500).json({ message: '投稿の取得に失敗しました。', error });
+    console.error('Error updating post:', error);
+    res.status(500).json({ 
+      message: '投稿の更新に失敗しました。', 
+      error: error.message 
+    });
   }
 });
+// 特定の投稿の編集用詳細を取得するエンドポイント（完全修正版）
+router.get('/:id([0-9a-fA-F]{24})/edit', authenticateToken, async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.user._id;
 
+    // 投稿を探し、かつその投稿のauthorが現在のユーザーであるかを確認
+    const post = await Post.findOne({ _id: postId, author: userId })
+      .populate('series', '_id title')
+      .populate('author', 'nickname');
+
+    if (!post) {
+      return res.status(404).json({ message: '投稿が見つかりませんでした。または編集権限がありません。' });
+    }
+
+    // フロントエンド用にデータを整形
+    const editData = {
+      _id: post._id,
+      title: post.title,
+      content: post.content,
+      description: post.description,
+      tags: post.tags || [],
+      original: post.isOriginal !== undefined ? post.isOriginal : null,
+      adultContent: post.isAdultContent !== undefined ? post.isAdultContent : null,
+      aiGenerated: post.isAI !== undefined ? post.isAI : null,
+      aiEvidence: post.aiEvidence || {
+        tools: [],
+        url: '',
+        description: ''
+      },
+      charCount: post.wordCount || 0,
+      imageCount: post.imageCount || 0,
+      publicityStatus: post.publicityStatus || 'public',
+      allowComments: post.allowComments !== undefined ? post.allowComments : true,
+      series: post.series ? post.series._id : null,
+      seriesTitle: post.series ? post.series.title : null,
+      author: post.author,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt
+    };
+
+    res.status(200).json(editData);
+
+  } catch (error) {
+    console.error('Error fetching post details for edit:', error);
+    res.status(500).json({ 
+      message: '投稿の取得に失敗しました。', 
+      error: error.message 
+    });
+  }
+});
 
 // 検索エンドポイント
 router.get('/search', async (req, res) => {

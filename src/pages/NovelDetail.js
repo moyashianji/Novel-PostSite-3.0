@@ -490,8 +490,11 @@ await fetch(`/api/views/${id}/view`, {
                 background: theme.palette.background.paper
               }}
             >
-              <CommentSection postId={id} />
-            </Paper>
+              <CommentSection 
+                postId={id} 
+                allowComments={post.allowComments !== false} 
+              />    
+                      </Paper>
           </Grid>
 
           {/* サイドバー（作者情報とシリーズ） */}

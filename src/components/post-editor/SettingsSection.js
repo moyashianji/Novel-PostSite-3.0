@@ -19,7 +19,7 @@ const SettingsSection = ({
   publicityStatus, 
   setPublicityStatus, 
   allowComments, 
-  setAllowComments, 
+  setAllowComments,
   formErrors 
 }) => {
   
@@ -101,8 +101,8 @@ const SettingsSection = ({
                 value={adultContent === false ? 'all' : adultContent === true ? 'r18' : ''}
                 onChange={handleAdultContentChange}
                 options={adultContentOptions}
-                tooltip="全年齢向けの作品は誰でも閲覧できます。R18作品は成人向けコンテンツを含みます。"
-                color="error"
+                tooltip="作品の対象年齢を設定してください。"
+                color="primary"
               />
               {formErrors?.adultContent && (
                 <Typography variant="caption" color="error">
@@ -111,16 +111,16 @@ const SettingsSection = ({
               )}
             </RadioContainer>
           </Grid>
-          
+
           <Grid item xs={12} md={6}>
             <RadioContainer>
               <RadioButtonGroup 
                 legend="公開設定"
-                value={publicityStatus || 'public'}
+                value={publicityStatus}
                 onChange={handlePublicityStatusChange}
                 options={publicityOptions}
-                tooltip="公開：検索結果に表示され、誰でも閲覧可能。限定公開：直接リンクを知っている人のみ閲覧可能。非公開：作者のみ閲覧可能。"
-                color="info"
+                tooltip="作品の公開範囲を設定してください。"
+                color="primary"
               />
               {formErrors?.publicityStatus && (
                 <Typography variant="caption" color="error">
@@ -134,12 +134,17 @@ const SettingsSection = ({
             <RadioContainer>
               <RadioButtonGroup 
                 legend="コメント設定"
-                value={allowComments ? 'on' : 'off'}
+                value={allowComments === true ? 'on' : allowComments === false ? 'off' : ''}
                 onChange={handleCommentsStatusChange}
                 options={commentOptions}
-                tooltip="コメントを許可すると、他のユーザーが作品にコメントできます。禁止すると、コメント機能が無効になります。"
-                color="success"
+                tooltip="読者からのコメントを受け付けるかどうか選択してください。"
+                color="primary"
               />
+              {formErrors?.allowComments && (
+                <Typography variant="caption" color="error">
+                  {formErrors.allowComments}
+                </Typography>
+              )}
             </RadioContainer>
           </Grid>
         </Grid>

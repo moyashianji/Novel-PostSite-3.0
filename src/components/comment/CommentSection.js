@@ -689,7 +689,7 @@ const CommentMenu = memo(({
 });
 
 // メインのコメントセクションコンポーネント
-const CommentSection = ({ postId }) => {
+const CommentSection = ({ postId, allowComments = true }) => {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [replyText, setReplyText] = useState('');
@@ -711,6 +711,7 @@ const CommentSection = ({ postId }) => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const theme = useTheme();
   const commentsRef = useRef(null);
+
   
   // スナックバーを表示する関数
   const showSnackbar = (message, severity = 'success') => {
@@ -748,6 +749,8 @@ const CommentSection = ({ postId }) => {
 
   // コメントの取得
   const fetchComments = useCallback(async (page = 1, reset = false) => {
+    if (!allowComments) return; // allowCommentsがfalseの場合は取得しない
+    
     setLoading(true);
     try {
       const response = await fetch(`/api/posts/${postId}/comments?page=${page}&limit=10`);
@@ -774,13 +777,7 @@ const CommentSection = ({ postId }) => {
       setLoading(false);
       setInitialLoading(false);
     }
-  }, [postId]);
-
-  // 初期データの読み込み
-  useEffect(() => {
-    fetchUserInfo();
-    fetchComments(1, true);
-  }, [fetchUserInfo, fetchComments]);
+  }, [postId, allowComments]);
 
   // さらに表示ボタンのハンドラー
   const handleLoadMore = useCallback(() => {
@@ -960,6 +957,46 @@ const CommentSection = ({ postId }) => {
     setReportOpen(true);
   }, []);
 
+  // 初期データの読み込み
+  useEffect(() => {
+    fetchUserInfo();
+    if (allowComments) {
+      fetchComments(1, true);
+    }
+  }, [fetchUserInfo, fetchComments, allowComments]);
+
+  // ★★★ ここに早期リターンを配置（全てのHooksの後） ★★★
+  if (!allowComments) {
+    return (
+      <Box sx={{ mt: 4 }}>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+          <Typography variant="h6" gutterBottom>
+            コメント
+          </Typography>
+        </Box>
+        
+        <Paper
+          elevation={1}
+          sx={{
+            p: 4,
+            textAlign: 'center',
+            borderRadius: 2,
+            backgroundColor: alpha(theme.palette.background.paper, 0.7),
+            border: `1px dashed ${theme.palette.divider}`
+          }}
+        >
+          <ChatBubbleOutlineIcon sx={{ fontSize: 48, color: theme.palette.text.secondary, opacity: 0.5, mb: 2 }} />
+          <Typography variant="h6" color="textSecondary" gutterBottom>
+            コメントが無効になっています
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            作者によってこの作品のコメント機能が無効化されています。
+          </Typography>
+        </Paper>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ mt: 4 }} ref={commentsRef}>
       <Snackbar
@@ -1104,5 +1141,4 @@ const CommentSection = ({ postId }) => {
     </Box>
   );
 };
-
 export default CommentSection;
