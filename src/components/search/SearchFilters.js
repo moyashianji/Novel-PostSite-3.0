@@ -195,6 +195,7 @@ const SearchFilters = () => {
                 { value: "title", label: "タイトル" },
                 { value: "content", label: "本文" },
                 { value: "tags", label: "タグ" },
+                { value: "contestTags", label: "コンテストタグ" }, // 🆕 コンテストタグ追加
             ];
 
     return (
@@ -266,6 +267,18 @@ const SearchFilters = () => {
                 onChange={(e) => handleInputChange("tagSearchType", e.target.value)}
                 disabled={type === "users"}
             />
+
+            {/* 🆕 コンテストタグ選択時の注意書き */}
+            {searchParams.fields === "contestTags" && (
+                <Box sx={{ mb: 2 }}>
+                    <Chip 
+                        label="コンテストタグは完全一致検索のみ対応" 
+                        variant="outlined" 
+                        color="primary"
+                        size="small"
+                    />
+                </Box>
+            )}
 
             {type === "users" && (
                 <Box sx={{ mb: 2 }}>

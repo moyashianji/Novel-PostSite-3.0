@@ -25,6 +25,7 @@ export const SearchProvider = memo(({ children }) => {
             tagSearchType: urlParams.get("tagSearchType") || "partial",
             type: type,
             aiTool: urlParams.get("aiTool") || "",
+            contestTag: urlParams.get("contestTag") || "", // 🆕 コンテストタグパラメータを追加
             ageFilter: urlParams.get("ageFilter") || "all", 
             postType: urlParams.get("postType") || "all", // 読み切り/連載フィルター
             length: urlParams.get("length") || "all", // 文字数フィルター
@@ -73,6 +74,7 @@ export const SearchProvider = memo(({ children }) => {
             shouldInclude: "",
             mustNotInclude: "",
             aiTool: "",
+            contestTag: "", // 🆕 コンテストタグもクリア対象に追加
             // ageFilterはそのまま保持
             page: "1",
         };

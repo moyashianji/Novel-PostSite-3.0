@@ -125,21 +125,15 @@ router.get('/', async (req, res) => {
             return res.status(500).json({ message: 'Elasticsearch クライアントが初期化されていません。' });
         }
 
-        
-        
-
         // 🔍 検索対象を決定 (`posts` または `series`)
         const type = req.query.type || 'posts';
         const index = type === 'series' ? 'series' : 'posts';
 
-            
         // 🌟 ページネーションのパラメータ
         const page = parseInt(req.query.page) || 1;
         const size = parseInt(req.query.size) || 10;
         const from = (page - 1) * size;
 
-
-        
         // 🔍 検索キーワード
         const mustInclude = req.query.mustInclude || '';
         const shouldInclude = req.query.shouldInclude || '';
@@ -147,11 +141,9 @@ router.get('/', async (req, res) => {
         const tagSearchType = req.query.tagSearchType || 'partial';
         const tags = req.query.tags ? req.query.tags.split(',') : [];
         const aiTool = req.query.aiTool || ''; // AIツールパラメータを追加
+        const contestTag = req.query.contestTag || ''; // 🆕 コンテストタグパラメータを追加
         const ageFilter = req.query.ageFilter || 'all'; // 年齢制限フィルターを追加
         const sortBy = req.query.sortBy || 'newest'; // ソートオプションを追加
-
-
-        
 
         // 🔹 fields の取得とデバッグ強化
         let fields = [];
@@ -239,6 +231,17 @@ router.get('/', async (req, res) => {
                     "aiEvidence.tools": aiTool
                 }
             });
+        }
+
+        // 🆕 コンテストタグでの検索を追加
+        if (contestTag) {
+            // コンテストタグは常に完全一致での検索
+            query.bool.filter.push({
+                term: {
+                    "contestTags": contestTag
+                }
+            });
+            console.log(`[INFO] 🏆 コンテストタグフィルター適用: ${contestTag}`);
         }
 
         // 年齢制限でのフィルタリングを追加

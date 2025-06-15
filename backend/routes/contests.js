@@ -206,7 +206,7 @@ router.post('/:id/apply', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'コンテスト応募に失敗しました。', error: error.message });
   }
 });
-// コンテスト応募削除エンドポイント
+// コンテスト応募削除エンドポイント - contestTags自動削除機能付き
 router.delete('/:id([0-9a-fA-F]{24})/entry/:entryId([0-9a-fA-F]{24})', authenticateToken, async (req, res) => {
     try {
       const contestId = req.params.id; // URLからコンテストIDを取得
@@ -231,11 +231,46 @@ router.delete('/:id([0-9a-fA-F]{24})/entry/:entryId([0-9a-fA-F]{24})', authentic
       if (entryIndex === -1) {
         return res.status(404).json({ message: 'エントリーが見つかりませんでした。' });
       }
+
+      // 🆕 作品からコンテストタグを削除
+      const post = await Post.findById(entryId);
+      if (post && contest.contestTags && contest.contestTags.length > 0) {
+        console.log('🏷️ 応募取り消し前のcontestTags:', post.contestTags);
+        
+        // このコンテストのタグを作品から削除
+        const updatedContestTags = post.contestTags.filter(tag => 
+          !contest.contestTags.includes(tag)
+        );
+        
+        if (updatedContestTags.length !== post.contestTags.length) {
+          post.contestTags = updatedContestTags;
+          
+          // 🚀 save()により、Postモデルのpost('save')フックが自動実行され、
+          // Elasticsearchにも自動的にcontestTagsが更新される
+          await post.save();
+          
+          const removedTags = contest.contestTags.filter(tag => 
+            post.contestTags.includes(tag) === false
+          );
+          
+          console.log(`✅ 作品 ${entryId} からコンテストタグを削除しました:`, removedTags);
+          console.log('🏷️ 応募取り消し後のcontestTags:', post.contestTags);
+          console.log(`🔍 Elasticsearchへの自動同期: Post.save()により自動実行されました`);
+        } else {
+          console.log('ℹ️ 削除するコンテストタグはありませんでした');
+        }
+      } else {
+        console.log('ℹ️ 作品が見つからないか、コンテストにタグが設定されていません');
+      }
   
-      contest.entries.splice(entryIndex, 1); // エントリーを削除
+      // コンテストエントリを削除
+      contest.entries.splice(entryIndex, 1);
       await contest.save();
   
-      res.status(200).json({ message: 'エントリーが削除されました。' });
+      res.status(200).json({ 
+        message: 'エントリーが削除されました。',
+        removedFromContestTags: contest.contestTags || [] // 🆕 削除されたタグ情報を返す
+      });
     } catch (error) {
       console.error('Error deleting contest entry:', error);
       res.status(500).json({ message: 'コンテストエントリーの削除に失敗しました。', error: error.message });
@@ -396,4 +431,73 @@ router.delete('/:id([0-9a-fA-F]{24})/entry/:entryId([0-9a-fA-F]{24})', authentic
       res.status(500).json({ message: 'コンテストの更新に失敗しました。', error: error.message });
     }
   });
+
+  router.get('/by-tag/:tag', async (req, res) => {
+  try {
+    const { tag } = req.params;
+    
+    if (!tag) {
+      return res.status(400).json({ message: 'コンテストタグが指定されていません。' });
+    }
+
+    console.log(`[INFO] コンテストタグ検索: ${tag}`);
+
+    // コンテストタグで完全一致検索
+    const contests = await Contest.find({
+      contestTags: { $in: [tag] }, // 指定されたタグを含むコンテストを検索
+      status: { $in: ['募集中', '開催予定', '募集終了', '募集一時停止中'] } // アクティブなコンテストのみ
+    })
+    .populate({
+      path: 'creator',
+      select: 'nickname icon'
+    })
+    .populate({
+      path: 'judges.userId',
+      select: 'nickname icon'
+    })
+    .sort({ 
+      // 募集中を最優先、次に開催予定、作成日時降順
+      status: 1,
+      createdAt: -1 
+    })
+    .lean();
+
+    console.log(`[INFO] 見つかったコンテスト数: ${contests.length}`);
+
+    if (contests.length === 0) {
+      return res.status(404).json({ 
+        message: `コンテストタグ「${tag}」に関連するコンテストが見つかりませんでした。` 
+      });
+    }
+
+    // ステータス順でソート（募集中 > 開催予定 > その他）
+    const statusPriority = {
+      '募集中': 1,
+      '開催予定': 2,
+      '募集終了': 3,
+      '募集一時停止中': 4
+    };
+
+    contests.sort((a, b) => {
+      const aPriority = statusPriority[a.status] || 5;
+      const bPriority = statusPriority[b.status] || 5;
+      
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      // 同じステータスの場合は作成日時降順
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+    res.status(200).json(contests);
+    
+  } catch (error) {
+    console.error('[ERROR] コンテストタグ検索エラー:', error);
+    res.status(500).json({ 
+      message: 'コンテスト検索中にエラーが発生しました。', 
+      error: error.message 
+    });
+  }
+});
   module.exports = router;
