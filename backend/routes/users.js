@@ -28,22 +28,41 @@ router.get('/:userId([0-9a-fA-F]{24})', async (req, res) => {
   }
 });
 // ユーザーの作品を取得するエンドポイント
-router.get('/:userId([0-9a-fA-F]{24})/works', async (req, res) => {
+router.get('/:userId([0-9a-fA-F]{24})/works',authenticateToken, async (req, res) => {
   try {
-    const works = await Post.find({ author: req.params.userId })
-    .populate([
-      {
-        path: 'author',
-        select: 'nickname icon'
-      },
-      {
-        path: 'series',
-        select: 'title _id'
-      }
-    ]);
+    const userId = req.params.userId;
+    const currentUserId = req.user?._id; // 現在ログインしているユーザーのID
+    console.log(currentUserId)      
+    // 作品の取得条件を設定
+    let searchConditions = { author: userId };
+    
+    // 現在のユーザーが作品の作者でない場合は、公開作品のみを表示
+    if (!currentUserId || currentUserId.toString() !== userId) {
+      searchConditions.publicityStatus = 'public'; // ✅ 公開作品のみ
+      console.log(`[INFO] 🔒 他のユーザーの作品ページ - 公開作品のみ表示 (userId: ${userId})`);
+    } else {
+      console.log(`[INFO] 📝 自分の作品ページ - 全ての作品を表示 (userId: ${userId})`);
+    }
+
+    const works = await Post.find(searchConditions)
+      .populate([
+        {
+          path: 'author',
+          select: 'nickname icon'
+        },
+        {
+          path: 'series',
+          select: 'title _id'
+        }
+      ])
+      .sort({ createdAt: -1 }); // 新しい順にソート
+
     if (!works) {
       return res.status(404).json({ message: '作品が見つかりませんでした。' });
     }
+
+    console.log(`[INFO] ✅ 取得した作品数: ${works.length} 件`);
+    
     res.json(works);
   } catch (error) {
     console.error('Error fetching user works:', error);

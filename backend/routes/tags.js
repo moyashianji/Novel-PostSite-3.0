@@ -15,15 +15,40 @@ const esClient = getEsClient();
 
 router.get('/tags/popular', async (req, res) => {
   try {
+    const ageFilter = req.query.ageFilter || 'all'; // 'all', 'general', 'r18'
+    
+    // Elasticsearchクエリの構築
+    let query = {
+      bool: {
+        filter: [
+          { term: { "publicityStatus": "public" } } // 公開作品のみ
+        ]
+      }
+    };
+
+    // 年齢フィルターの適用
+    if (ageFilter === 'general') {
+      // 全年齢のみ（isAdultContent: false）
+      query.bool.filter.push({ term: { "isAdultContent": false } });
+    } else if (ageFilter === 'r18') {
+      // R18のみ（isAdultContent: true）
+      query.bool.filter.push({ term: { "isAdultContent": true } });
+    }
+    // 'all' の場合はフィルターを追加しない
+
+    console.log(`[INFO] 🔞 人気タグ取得 - 年齢フィルター: ${ageFilter}`);
+    console.log(`[INFO] 🔍 Elasticsearchクエリ:`, JSON.stringify(query, null, 2));
+
     const response = await esClient.search({
       index: 'posts',
       body: {
         size: 0, // 検索結果は不要
+        query: query, // フィルタークエリを追加
         aggs: {
           popular_tags: {
             terms: {
-              field: "tags", // ✅ `keyword` を削除
-              size: 20 // 人気タグトップ10
+              field: "tags", // タグフィールドの集計
+              size: 20 // 人気タグトップ20
             }
           }
         }
@@ -36,6 +61,8 @@ router.get('/tags/popular', async (req, res) => {
       count: bucket.doc_count
     }));
     
+    console.log(`[INFO] ✅ 人気タグ取得成功 - ${tags.length} 件 (フィルター: ${ageFilter})`);
+    console.log(`[INFO] 📊 上位5タグ:`, tags.slice(0, 5).map(t => `${t.tag}(${t.count})`).join(', '));
 
     res.json(tags);
   } catch (error) {

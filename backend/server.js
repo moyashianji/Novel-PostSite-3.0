@@ -1,12 +1,3 @@
-process.env.NODE_ENV = 'development';
-process.env.TEST_MODE = 'true';
-console.log(`
-🔧 環境設定:
-   NODE_ENV: ${process.env.NODE_ENV}
-   TEST_MODE: ${process.env.TEST_MODE}
-   PORT: ${process.env.PORT || 5000}
-`);
-
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -16,6 +7,7 @@ const MongoStore = require('connect-mongo');
 const cookieParser = require('cookie-parser');
 const { getEsClient } = require('./utils/esClient');
 const { migrateSeriesToElasticsearch } = require('./utils/migrateSeriesToElasticsearch');
+const {addContestTagsToExistingDocuments,initializeContestTagsInMongoDB} = require('./utils/elasticsearch');
 const { ensureRedisConnection } = require('./utils/redisClient');
 const authenticateToken = require('./middlewares/authenticateToken');
 const { client: redisClient } = require('./utils/redisClient');
@@ -132,12 +124,52 @@ async function checkElasticsearchConnection() {
 }
 checkElasticsearchConnection();
 
+// 🆕 コンテストタグ初期化関数
+async function initializeContestTags() {
+  try {
+    console.log('🏷️ ContestTags初期化チェック中...');
+    
+    // contestTagsフィールドがない作品の数をチェック
+    const needsInitCount = await Post.countDocuments({
+      $or: [
+        { contestTags: { $exists: false } },
+        { contestTags: null },
+        { contestTags: undefined }
+      ]
+    });
+    
+    if (needsInitCount > 0) {
+      console.log(`📝 ${needsInitCount} 件の作品でcontestTagsフィールドの初期化が必要です`);
+      
+      // MongoDB初期化
+      await initializeContestTagsInMongoDB();
+      
+      // Elasticsearch初期化
+      await addContestTagsToExistingDocuments();
+      
+      console.log('✅ ContestTagsフィールドの初期化が完了しました！');
+    } else {
+      console.log('✅ 全ての作品にcontestTagsフィールドが存在します');
+    }
+    
+  } catch (error) {
+    console.error('❌ ContestTags初期化エラー:', error);
+    // サーバー起動を阻害しないようにエラーをログのみに留める
+  }
+}
+
 // ✅ MongoDB に接続
 mongoose.connect('mongodb://host.docker.internal:27017/novel-site')
   .then(async () => {
     console.log('✅ MongoDB connected');
     //await migrateSeriesToElasticsearch();
-        await initializePublicityStatus();
+        //await initializePublicityStatus();
+       // await addIsAdultContentToExistingDocuments();
+      // await addPublicityStatusToExistingDocuments();
+     // await addContestTagsToExistingDocuments();
+     
+     // 🆕 ContestTags自動初期化
+     await initializeContestTags();
 
   })
   .catch(err => console.error('❌ MongoDB connection error:', err));

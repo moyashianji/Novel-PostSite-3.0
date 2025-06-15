@@ -28,6 +28,7 @@ const postSchema = new mongoose.Schema({
   content: { type: String, required: true },
   description: { type: String, required: true, maxlength: 3000 },
   tags: [{ type: String, maxlength: 50 }],
+  contestTags: [{ type: String, maxlength: 50 }], // コンテストから自動追加されるタグ
   author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   images: [{ type: String }],
   imageCount: { type: Number, default: 0 }, // 画像数
@@ -86,49 +87,123 @@ postSchema.index({ 'trendingScores.monthlyScore': -1 });
 postSchema.index({ 'trendingScores.yearlyScore': -1 });
 
 
-// Post.jsのpostSchema.post('save')フックを更新
+// models/Post.js の post('save') フックを更新
 postSchema.post('save', async function (doc) {
   try {
     if (!esClient) throw new Error('❌ Elasticsearch client is undefined');
 
-    // 🔍 HTMLタグを削除
-    const cleanContent = sanitizeHtml(doc.content, {
-      allowedTags: [],  // 🚀 すべてのHTMLタグを削除
-      allowedAttributes: {}  // 🔹 すべての属性も削除
-    });
-
-    console.log('🔍 元のコンテンツ:', doc.content);
-    console.log('🛠 サニタイズ後のコンテンツ:', cleanContent);
-
-    // Elasticsearch に保存するデータを準備
-    const esBody = {
-      title: doc.title,
-      content: cleanContent,  // 🔥 タグ除去後のコンテンツを使用
-      description: doc.description,
-      tags: doc.tags || [],
-      author: doc.author.toString(),
-      createdAt: doc.createdAt,
-    };
-
-    // aiEvidenceフィールドがある場合は追加
-    if (doc.aiEvidence) {
-      esBody.aiEvidence = {
-        tools: doc.aiEvidence.tools || [],
-        url: doc.aiEvidence.url || '',
-        description: doc.aiEvidence.description || ''
-      };
+    // まず既存のドキュメントが存在するかチェック
+    let existingDoc = null;
+    try {
+      const getResponse = await esClient.get({
+        index: 'posts',
+        id: doc._id.toString(),
+      });
+      existingDoc = getResponse._source;
+    } catch (getError) {
+      // ドキュメントが存在しない場合は null のまま
+      if (getError.statusCode !== 404) {
+        throw getError;
+      }
     }
 
-    // Elasticsearch に保存
-    const response = await esClient.index({
-      index: 'posts',
-      id: doc._id.toString(),
-      body: esBody,
-    });
+    if (existingDoc) {
+      // 既存のドキュメントがある場合は部分更新
+      const updateBody = {
+        isAdultContent: doc.isAdultContent || false, // ✅ R18情報
+        publicityStatus: doc.publicityStatus || 'public', // ✅ 公開設定情報
+      };
 
-    console.log('✅ Document indexed in Elasticsearch:', response);
+      // 他のフィールドも変更されている場合は追加で更新
+      if (doc.title !== existingDoc.title) updateBody.title = doc.title;
+      if (doc.description !== existingDoc.description) updateBody.description = doc.description;
+      
+      // タグが変更されている場合
+      const currentTags = JSON.stringify(doc.tags || []);
+      const existingTags = JSON.stringify(existingDoc.tags || []);
+      if (currentTags !== existingTags) updateBody.tags = doc.tags || [];
+
+      // 🆕 コンテストタグが変更されている場合（常に更新してフィールド存在を保証）
+      const currentContestTags = JSON.stringify(doc.contestTags || []);
+      const existingContestTags = JSON.stringify(existingDoc.contestTags || []);
+      if (currentContestTags !== existingContestTags) {
+        updateBody.contestTags = doc.contestTags || [];
+        console.log('🏷️ コンテストタグが更新されました:', updateBody.contestTags);
+      }
+
+      // コンテンツが変更されている場合のみサニタイズして更新
+      if (doc.content !== existingDoc.content) {
+        const cleanContent = sanitizeHtml(doc.content, {
+          allowedTags: [],
+          allowedAttributes: {}
+        });
+        updateBody.content = cleanContent;
+      }
+
+      // aiEvidenceフィールドがある場合は追加
+      if (doc.aiEvidence) {
+        updateBody.aiEvidence = {
+          tools: doc.aiEvidence.tools || [],
+          url: doc.aiEvidence.url || '',
+          description: doc.aiEvidence.description || ''
+        };
+      }
+
+      const response = await esClient.update({
+        index: 'posts',
+        id: doc._id.toString(),
+        body: {
+          doc: updateBody
+        },
+      });
+
+      console.log('✅ Document updated in Elasticsearch:', response);
+    } else {
+      // 新しいドキュメントの場合は完全な内容でインデックス
+      const cleanContent = sanitizeHtml(doc.content, {
+        allowedTags: [],
+        allowedAttributes: {}
+      });
+
+      const esBody = {
+        title: doc.title,
+        content: cleanContent,
+        description: doc.description,
+        tags: doc.tags || [],
+        contestTags: doc.contestTags || [], // 🆕 コンテストタグフィールドを必ず含める（空配列でも）
+        author: doc.author.toString(),
+        createdAt: doc.createdAt,
+        isAdultContent: doc.isAdultContent || false, // ✅ R18情報
+        publicityStatus: doc.publicityStatus || 'public', // ✅ 公開設定情報
+      };
+
+      // aiEvidenceフィールドがある場合は追加
+      if (doc.aiEvidence) {
+        esBody.aiEvidence = {
+          tools: doc.aiEvidence.tools || [],
+          url: doc.aiEvidence.url || '',
+          description: doc.aiEvidence.description || ''
+        };
+      }
+
+      console.log('🆕 新規作品投稿 - Elasticsearchインデックス作成:', {
+        id: doc._id.toString(),
+        title: doc.title,
+        contestTags: esBody.contestTags,
+        hasContestTagsField: esBody.hasOwnProperty('contestTags')
+      });
+
+      const response = await esClient.index({
+        index: 'posts',
+        id: doc._id.toString(),
+        body: esBody,
+      });
+
+      console.log('✅ Document indexed in Elasticsearch:', response);
+      console.log('🏷️ コンテストタグフィールドが作成されました:', esBody.contestTags);
+    }
   } catch (error) {
-    console.error('❌ Error indexing document in Elasticsearch:', error);
+    console.error('❌ Error indexing/updating document in Elasticsearch:', error);
   }
 });
 

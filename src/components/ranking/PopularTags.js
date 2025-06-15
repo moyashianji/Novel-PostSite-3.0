@@ -8,7 +8,9 @@ import {
   Tooltip,
   Badge,
   Fade,
-  CircularProgress
+  CircularProgress,
+  Tabs,
+  Tab
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { alpha } from '@mui/material/styles';
@@ -16,18 +18,27 @@ import TagIcon from '@mui/icons-material/Tag';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import SearchIcon from '@mui/icons-material/Search';
+import AllInclusiveIcon from '@mui/icons-material/AllInclusive';
+import FamilyRestroomIcon from '@mui/icons-material/FamilyRestroom';
+import RestrictedIcon from '@mui/icons-material/DoNotDisturbOn';
 
 const PopularTags = () => {
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [ageFilter, setAgeFilter] = useState('all'); // 'all', 'general', 'r18'
   const navigate = useNavigate();
 
   useEffect(() => {
     const fetchTags = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/tags/popular`);
+        let url = `/api/tags/popular`;
+        if (ageFilter !== 'all') {
+          url += `?ageFilter=${ageFilter}`;
+        }
+        
+        const response = await fetch(url);
         if (!response.ok) {
           throw new Error('Network response was not ok');
         }
@@ -43,10 +54,19 @@ const PopularTags = () => {
     };
 
     fetchTags();
-  }, []);
+  }, [ageFilter]);
+
+  const handleTabChange = (event, newValue) => {
+    setAgeFilter(newValue);
+  };
 
   const handleTagClick = (tag) => {
-    navigate(`/search?mustInclude=${encodeURIComponent(tag)}`);
+    // 年齢フィルターも含めて検索ページに遷移
+    let searchParams = `mustInclude=${encodeURIComponent(tag)}`;
+    if (ageFilter !== 'all') {
+      searchParams += `&ageFilter=${ageFilter}`;
+    }
+    navigate(`/search?${searchParams}`);
   };
 
   // Get tag size based on count/popularity
@@ -54,14 +74,6 @@ const PopularTags = () => {
     // Normalize between 0.9 and 1.4 for font size multiplier
     const normalized = 0.9 + (count / max) * 0.5;
     return normalized;
-  };
-  
-  // Get a color based on popularity
-  const getTagColor = (count, max, theme) => {
-    // This creates varying shades of the primary color based on popularity
-    const intensity = Math.min(0.9, 0.3 + (count / max) * 0.7);
-    // Return a function that will apply the color when given the theme
-    return (theme) => alpha(theme.palette.primary.main, intensity);
   };
 
   // Generate tag cloud layout
@@ -232,6 +244,62 @@ const PopularTags = () => {
         )}
       </Box>
       
+      {/* 年齢フィルタータブ */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Tabs 
+          value={ageFilter} 
+          onChange={handleTabChange} 
+          variant="fullWidth"
+          sx={{
+            minHeight: 48,
+            '& .MuiTab-root': {
+              minHeight: 48,
+              fontSize: '0.875rem',
+              fontWeight: 'bold',
+              textTransform: 'none',
+              py: 1,
+            }
+          }}
+        >
+          <Tab 
+            label="すべて" 
+            value="all" 
+            icon={<AllInclusiveIcon fontSize="small" />}
+            iconPosition="start"
+            sx={{ 
+              '&.Mui-selected': { 
+                color: 'primary.main',
+                backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08)
+              }
+            }}
+          />
+          <Tab 
+            label="全年齢" 
+            value="general" 
+            icon={<FamilyRestroomIcon fontSize="small" />}
+            iconPosition="start"
+            sx={{ 
+              '&.Mui-selected': { 
+                color: 'success.main',
+                backgroundColor: (theme) => alpha(theme.palette.success.main, 0.08)
+              }
+            }}
+          />
+          <Tab 
+            label="R18" 
+            value="r18" 
+            icon={<RestrictedIcon fontSize="small" />}
+            iconPosition="start"
+            sx={{ 
+              '&.Mui-selected': { 
+                color: 'error.main',
+                backgroundColor: (theme) => alpha(theme.palette.error.main, 0.08)
+              }
+            }}
+          />
+        </Tabs>
+      </Box>
+      
       {renderTags()}
       
       {tags.length > 0 && (
@@ -245,7 +313,10 @@ const PopularTags = () => {
             justifyContent: 'center'
           }}
         >
-
+          <Typography variant="caption" color="text.secondary">
+            {ageFilter === 'all' ? 'すべて' : 
+             ageFilter === 'general' ? '全年齢' : 'R18'} のタグ
+          </Typography>
         </Box>
       )}
     </Paper>

@@ -1,9 +1,71 @@
 // utils/elasticsearch.js
-const getEsClient = require('./esClient');
+const { getEsClient } = require('./esClient');
 const Post = require('../models/Post');
 const Series = require('../models/Series');
 const sanitizeHtml = require('sanitize-html'); // インストールが必要
 const esClient = getEsClient();
+
+async function addIsAdultContentToExistingDocuments() {
+    try {
+      console.log('🔍 既存のElasticsearchドキュメントにisAdultContentフィールドを追加中...');
+  
+      // MongoDBから全投稿のIDとisAdultContent情報を取得
+      const posts = await Post.find({}, { _id: 1, isAdultContent: 1 });
+  
+      console.log(`📝 MongoDB から取得したデータ (${posts.length} 件)`);
+  
+      if (!posts || posts.length === 0) {
+        console.log('✅ 更新するデータがありません。');
+        return;
+      }
+  
+      // Elasticsearch に既存のドキュメントを部分更新 (Bulk API)
+      const body = posts.flatMap((post) => [
+        { 
+          update: { 
+            _index: 'posts', 
+            _id: post._id.toString(),
+            retry_on_conflict: 3 // 競合時のリトライ回数
+          } 
+        },
+        {
+          doc: {
+            isAdultContent: post.isAdultContent || false // ✅ R18情報のみを追加/更新
+          },
+          doc_as_upsert: false // 既存ドキュメントのみ更新
+        }
+      ]);
+  
+      if (body.length === 0) {
+        console.log('✅ 更新するデータがありません。スキップします。');
+        return;
+      }
+  
+      console.log(`📤 ${posts.length} 件のドキュメントにisAdultContentフィールドを追加中...`);
+
+      const bulkResponse = await esClient.bulk({ refresh: "wait_for", body });
+      
+      console.log('🔍 bulkResponse:', JSON.stringify(bulkResponse, null, 2));
+      
+      if (!bulkResponse || !bulkResponse.items) {
+        console.error('❌ Elasticsearch への部分更新失敗: bulkResponse が不正');
+        return;
+      }
+      
+      if (bulkResponse.errors) {
+        const errorItems = bulkResponse.items.filter(item => item.update && item.update.error);
+        console.error('❌ Elasticsearch への一部更新に失敗:', JSON.stringify(errorItems, null, 2));
+        
+        // 成功した件数も表示
+        const successCount = bulkResponse.items.length - errorItems.length;
+        console.log(`✅ ${successCount} 件のドキュメントにisAdultContentフィールドを追加しました。`);
+      } else {
+        console.log(`✅ ${bulkResponse.items.length} 件のドキュメントにisAdultContentフィールドを追加しました。`);
+      }
+    } catch (error) {
+      console.error('❌ Elasticsearch への部分更新エラー:', error);
+    }
+  }
 
 async function migrateDataToElasticsearch() {
     try {
@@ -75,6 +137,165 @@ async function migrateDataToElasticsearch() {
     }
   }
   
+// publicityStatusのみを全作品に追加する関数
+async function addPublicityStatusToExistingDocuments() {
+    try {
+      console.log('🔍 既存のElasticsearchドキュメントにpublicityStatusフィールドを追加中...');
+  
+      // MongoDBから全投稿のIDとpublicityStatus情報を取得
+      const posts = await Post.find({}, { _id: 1, publicityStatus: 1 });
+  
+      console.log(`📝 MongoDB から取得したデータ (${posts.length} 件)`);
+  
+      if (!posts || posts.length === 0) {
+        console.log('✅ 更新するデータがありません。');
+        return;
+      }
+  
+      // Elasticsearch に既存のドキュメントを部分更新 (Bulk API)
+      const body = posts.flatMap((post) => [
+        { 
+          update: { 
+            _index: 'posts', 
+            _id: post._id.toString(),
+            retry_on_conflict: 3 // 競合時のリトライ回数
+          } 
+        },
+        {
+          doc: {
+            publicityStatus: post.publicityStatus || 'public' // ✅ 公開設定情報のみを追加/更新
+          },
+          doc_as_upsert: false // 既存ドキュメントのみ更新
+        }
+      ]);
+  
+      if (body.length === 0) {
+        console.log('✅ 更新するデータがありません。スキップします。');
+        return;
+      }
+  
+      console.log(`📤 ${posts.length} 件のドキュメントにpublicityStatusフィールドを追加中...`);
 
+      const bulkResponse = await esClient.bulk({ refresh: "wait_for", body });
+      
+      console.log('🔍 bulkResponse:', JSON.stringify(bulkResponse, null, 2));
+      
+      if (!bulkResponse || !bulkResponse.items) {
+        console.error('❌ Elasticsearch への部分更新失敗: bulkResponse が不正');
+        return;
+      }
+      
+      if (bulkResponse.errors) {
+        const errorItems = bulkResponse.items.filter(item => item.update && item.update.error);
+        console.error('❌ Elasticsearch への一部更新に失敗:', JSON.stringify(errorItems, null, 2));
+        
+        // 成功した件数も表示
+        const successCount = bulkResponse.items.length - errorItems.length;
+        console.log(`✅ ${successCount} 件のドキュメントにpublicityStatusフィールドを追加しました。`);
+      } else {
+        console.log(`✅ ${bulkResponse.items.length} 件のドキュメントにpublicityStatusフィールドを追加しました。`);
+      }
+    } catch (error) {
+      console.error('❌ Elasticsearch への部分更新エラー:', error);
+    }
+  }
 
-  module.exports = { migrateDataToElasticsearch };
+// 🆕 contestTagsのみを全作品に追加する関数
+async function addContestTagsToExistingDocuments() {
+    try {
+      console.log('🔍 既存のElasticsearchドキュメントにcontestTagsフィールドを追加中...');
+  
+      // MongoDBから全投稿のIDとcontestTags情報を取得
+      const posts = await Post.find({}, { _id: 1, contestTags: 1 });
+  
+      console.log(`📝 MongoDB から取得したデータ (${posts.length} 件)`);
+  
+      if (!posts || posts.length === 0) {
+        console.log('✅ 更新するデータがありません。');
+        return;
+      }
+  
+      // Elasticsearch に既存のドキュメントを部分更新 (Bulk API)
+      const body = posts.flatMap((post) => [
+        { 
+          update: { 
+            _index: 'posts', 
+            _id: post._id.toString(),
+            retry_on_conflict: 3 // 競合時のリトライ回数
+          } 
+        },
+        {
+          doc: {
+            contestTags: post.contestTags || [] // 🆕 コンテストタグフィールドのみを追加/更新
+          },
+          doc_as_upsert: false // 既存ドキュメントのみ更新
+        }
+      ]);
+  
+      if (body.length === 0) {
+        console.log('✅ 更新するデータがありません。スキップします。');
+        return;
+      }
+  
+      console.log(`📤 ${posts.length} 件のドキュメントにcontestTagsフィールドを追加中...`);
+
+      const bulkResponse = await esClient.bulk({ refresh: "wait_for", body });
+      
+      console.log('🔍 bulkResponse:', JSON.stringify(bulkResponse, null, 2));
+      
+      if (!bulkResponse || !bulkResponse.items) {
+        console.error('❌ Elasticsearch への部分更新失敗: bulkResponse が不正');
+        return;
+      }
+      
+      if (bulkResponse.errors) {
+        const errorItems = bulkResponse.items.filter(item => item.update && item.update.error);
+        console.error('❌ Elasticsearch への一部更新に失敗:', JSON.stringify(errorItems, null, 2));
+        
+        // 成功した件数も表示
+        const successCount = bulkResponse.items.length - errorItems.length;
+        console.log(`✅ ${successCount} 件のドキュメントにcontestTagsフィールドを追加しました。`);
+      } else {
+        console.log(`✅ ${bulkResponse.items.length} 件のドキュメントにcontestTagsフィールドを追加しました。`);
+      }
+    } catch (error) {
+      console.error('❌ Elasticsearch への部分更新エラー:', error);
+    }
+  }
+
+// 🆕 MongoDBの既存作品にcontestTagsフィールドを初期化する関数
+async function initializeContestTagsInMongoDB() {
+    try {
+      console.log('🔍 MongoDBの既存作品にcontestTagsフィールドを初期化中...');
+  
+      // contestTagsフィールドが存在しない、またはundefinedの作品を検索
+      const result = await Post.updateMany(
+        { 
+          $or: [
+            { contestTags: { $exists: false } },
+            { contestTags: null },
+            { contestTags: undefined }
+          ]
+        },
+        { 
+          $set: { contestTags: [] } // 空配列で初期化
+        }
+      );
+  
+      console.log(`✅ ${result.modifiedCount} 件の作品にcontestTagsフィールドを初期化しました`);
+      console.log(`📊 マッチした作品数: ${result.matchedCount}`);
+      
+      return result;
+    } catch (error) {
+      console.error('❌ MongoDB contestTags初期化エラー:', error);
+      throw error;
+    }
+  }
+
+  module.exports = { 
+    migrateDataToElasticsearch,
+    addIsAdultContentToExistingDocuments,
+    addPublicityStatusToExistingDocuments,
+    addContestTagsToExistingDocuments, // 🆕 追加
+    initializeContestTagsInMongoDB // 🆕 追加
+  };

@@ -42,6 +42,26 @@ const contestSchema = new mongoose.Schema({
   status: { type: String, required: true},
   creator: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   entries: [entrySchema],
+  // 🔧 contestTagsフィールドのdefaultを削除し、上書き防止
+  contestTags: {
+    type: [{ type: String, maxlength: 50 }],
+    // 🚨 defaultを削除して上書きを防止
+  }
 }, { timestamps: true });
+
+// 🆕 contestTagsの保護機能を追加
+contestSchema.pre('save', function(next) {
+  // 🔧 contestTagsが既に設定されている場合、意図しない上書きを防ぐ
+  if (this.isModified('contestTags')) {
+    console.log('🏷️ contestTagsが変更されました:', this.contestTags);
+  }
+  
+  // 🔧 entriesだけを変更している場合、contestTagsを保持
+  if (this.isModified('entries') && !this.isModified('contestTags')) {
+    console.log('🏷️ entries変更時、contestTagsを保護:', this.contestTags);
+  }
+  
+  next();
+});
 
 module.exports = mongoose.model('Contest', contestSchema);

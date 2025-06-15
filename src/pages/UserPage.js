@@ -169,7 +169,9 @@ const UserPage = () => {
         }
         
         // Fetch user's works
-        const worksResponse = await fetch(`/api/users/${id}/works`);
+        const worksResponse = await fetch(`/api/users/${id}/works`, {
+            credentials: 'include',
+          });
         if (!worksResponse.ok) {
           throw new Error('作品一覧の取得に失敗しました');
         }

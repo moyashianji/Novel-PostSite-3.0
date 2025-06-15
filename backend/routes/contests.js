@@ -7,7 +7,7 @@ const Post = require('../models/Post');
 const authenticateToken = require('../middlewares/authenticateToken');
 const router = express.Router();
 const path = require('path');
-const mongoosed = require('mongoose');
+const mongoose = require('mongoose'); // 🔧 mongoosed → mongoose
 
 
 // Multerで画像アップロードの設定
@@ -48,6 +48,7 @@ router.post('/create', authenticateToken, upload.fields([{ name: 'iconImage' }, 
       minEntries,
       maxEntries,
       status,
+      contestTags // 🆕 追加
     } = req.body;
     // ✅ `Date` に変換できる場合は `Date` として保存、それ以外は `String`
     const parseDateOrString = (value) => {
@@ -96,6 +97,7 @@ router.post('/create', authenticateToken, upload.fields([{ name: 'iconImage' }, 
       maxEntries: parseInt(maxEntries, 10) || Infinity,
       creator: req.user._id, // 認証されたユーザーを主催者として設定
       status: status,
+      contestTags: contestTags ? JSON.parse(contestTags) : [], // 🆕 追加
 
     });
     console.log("testtt")
@@ -110,32 +112,100 @@ router.post('/create', authenticateToken, upload.fields([{ name: 'iconImage' }, 
   }
 });
 
-router.post('/:id/enter', authenticateToken, async (req, res) => {
-    try {
-      const { id: contestId } = req.params;
-      const { postId } = req.body;
-      const userId = req.user._id;
-  
-      const contest = await Contest.findById(contestId);
-      if (!contest) return res.status(404).json({ message: 'コンテストが見つかりませんでした。' });
-  
-      const alreadyEntered = contest.entries.some(entry => entry.userId.toString() === userId.toString());
-      if (alreadyEntered) return res.status(400).json({ message: '既に応募済みです。' });
-  
-      if (contest.entries.length >= contest.maxEntries) {
-        return res.status(400).json({ message: '応募数が上限に達しました。' });
-      }
-  
-      contest.entries.push({ postId, userId });
-      await contest.save();
-  
-      res.status(200).json({ message: '応募が完了しました。' });
-    } catch (error) {
-      console.error('Error entering contest:', error);
-      res.status(500).json({ message: '応募に失敗しました。', error });
+// コンテスト応募エンドポイント - タグ追加機能付き
+router.post('/:id/apply', authenticateToken, async (req, res) => {
+  try {
+    console.log("aaaa")
+    const contestId = req.params.id; // URLからコンテストIDを取得
+    const {selectedPostId} = req.body; // リクエストボディからpostIdを取得
+    const userId = req.user._id; // 認証されたユーザーID
+    // postId の形式を検証
+    if (!selectedPostId || !mongoose.isValidObjectId(selectedPostId)) { // 🔧 mongoosed → mongoose
+      return res.status(400).json({ message: '無効な作品IDが提供されました。' });
     }
-  });
 
+    // コンテストを取得
+    const contest = await Contest.findById(contestId);
+    console.log(contest.contestTags)
+
+    if (!contest) {
+      return res.status(404).json({ message: 'コンテストが見つかりませんでした。' });
+    }
+    
+    // **ステータスが「募集中」以外なら応募不可**
+    if (contest.status !== '募集中') {
+      return res.status(400).json({ message: '現在、このコンテストには応募できません。' });
+    }
+    
+    // 作品を取得
+    const post = await Post.findById(selectedPostId);
+    if (!post) {
+      return res.status(404).json({ message: '作品が見つかりませんでした。' });
+    }
+
+    // 🆕 contestTagsフィールドが存在しない場合は初期化
+    if (!post.contestTags) {
+      post.contestTags = [];
+      console.log(`🔧 作品 ${selectedPostId} にcontestTagsフィールドを初期化しました`);
+    }
+
+    console.log("Post ID from DB:", post._id);
+    console.log("Current contestTags:", post.contestTags);
+
+    // 既に応募されている場合はエラーを返す
+    const alreadyApplied = contest.entries.some(entry =>
+      entry.postId.toString() === selectedPostId // 文字列形式で比較
+    );
+
+    if (alreadyApplied) {
+      return res.status(400).json({ message: 'この作品は既に応募されています。' });
+    }
+
+    // 🆕 作品にコンテストタグを追加（Elasticsearchにも自動反映）
+    let addedTags = [];
+    if (contest.contestTags && contest.contestTags.length > 0) {
+      // 既存のコンテストタグと重複しないようにフィルタリング
+      const newContestTags = contest.contestTags.filter(tag => 
+        !post.contestTags.includes(tag)
+      );
+      
+      if (newContestTags.length > 0) {
+        // 作品にコンテストタグを追加
+        post.contestTags = [...post.contestTags, ...newContestTags];
+        
+        // 🚀 save()により、Postモデルのpost('save')フックが自動実行され、
+        // Elasticsearchにも自動的にcontestTagsが更新される
+        await post.save();
+        
+        addedTags = newContestTags;
+        console.log(`✅ 作品 ${selectedPostId} にコンテストタグを追加しました:`, newContestTags);
+        console.log(`🔍 Elasticsearchへの自動同期: Post.save()により自動実行されました`);
+      }
+    }
+
+    // 応募エントリを作成
+    const entry = {
+        postId: selectedPostId, // postId を ObjectId にキャスト
+        userId: userId, // userId を ObjectId にキャスト
+    };
+    
+    // entries フィールドに応募を追加
+    contest.entries.push(entry);
+
+    // コンテストを保存
+    await contest.save();
+
+    res.status(200).json({ 
+      message: '応募が完了しました。', 
+      contest,
+      addedTags: addedTags, // 🆕 実際に追加されたタグ情報を返す
+      elasticsearchUpdated: addedTags.length > 0 // 🆕 ES更新状況を返す
+    });
+  } catch (error) {
+    console.error('Error applying to contest:', error);
+    res.status(500).json({ message: 'コンテスト応募に失敗しました。', error: error.message });
+  }
+});
 // コンテスト応募削除エンドポイント
 router.delete('/:id([0-9a-fA-F]{24})/entry/:entryId([0-9a-fA-F]{24})', authenticateToken, async (req, res) => {
     try {
@@ -171,61 +241,9 @@ router.delete('/:id([0-9a-fA-F]{24})/entry/:entryId([0-9a-fA-F]{24})', authentic
       res.status(500).json({ message: 'コンテストエントリーの削除に失敗しました。', error: error.message });
     }
   });
-// コンテスト応募エンドポイント
-router.post('/:id/apply', authenticateToken, async (req, res) => {
-  try {
-    const contestId = req.params.id; // URLからコンテストIDを取得
-    const {selectedPostId} = req.body; // リクエストボディからpostIdを取得
-    const userId = req.user._id; // 認証されたユーザーID
 
-    // postId の形式を検証
-    if (!selectedPostId || !mongoosed.isValidObjectId(selectedPostId)) {
-      return res.status(400).json({ message: '無効な作品IDが提供されました。' });
-    }
 
-    // コンテストを取得
-    const contest = await Contest.findById(contestId);
-    if (!contest) {
-      return res.status(404).json({ message: 'コンテストが見つかりませんでした。' });
-    }
-    // **ステータスが「募集中」以外なら応募不可**
-    if (contest.status !== '募集中') {
-      return res.status(400).json({ message: '現在、このコンテストには応募できません。' });
-    }
-    // 作品を取得
-    const post = await Post.findById(selectedPostId);
-    if (!post) {
-      return res.status(404).json({ message: '作品が見つかりませんでした。' });
-    }
 
-    console.log("Post ID from DB:", post._id);
-
-    // 既に応募されている場合はエラーを返す
-    const alreadyApplied = contest.entries.some(entry =>
-      entry.postId.toString() === selectedPostId // 文字列形式で比較
-    );
-
-    if (alreadyApplied) {
-      return res.status(400).json({ message: 'この作品は既に応募されています。' });
-    }
-
-    // 応募エントリを作成
-    const entry = {
-        postId: selectedPostId, // postId を ObjectId にキャスト
-        userId: userId, // userId を ObjectId にキャスト
-      };
-    // entries フィールドに応募を追加
-    contest.entries.push(entry);
-
-    // コンテストを保存
-    await contest.save();
-
-    res.status(200).json({ message: '応募が完了しました。', contest });
-  } catch (error) {
-    console.error('Error applying to contest:', error);
-    res.status(500).json({ message: 'コンテスト応募に失敗しました。', error: error.message });
-  }
-});
   router.get('/:id', async (req, res) => {
     try {
       const contest = await Contest.findById(req.params.id)
@@ -235,7 +253,7 @@ router.post('/:id/apply', authenticateToken, async (req, res) => {
       })
       .populate({
         path: 'entries.postId',
-        select: 'title description author series tags viewCounter goodCounter bookShelfCounter wordCount isAdultContent isAI isOriginal aiEvidence',
+        select: 'title description author series tags contestTags viewCounter goodCounter bookShelfCounter wordCount isAdultContent isAI isOriginal aiEvidence', // 🆕 contestTags 追加
         populate: [
           {
           path: 'author',
@@ -280,7 +298,7 @@ router.post('/:id/apply', authenticateToken, async (req, res) => {
     }
   });
   
-
+// コンテスト編集エンドポイント - タグ機能付き
   router.put('/:id', authenticateToken, upload.fields([{ name: 'iconImage' }, { name: 'headerImage' }]), async (req, res) => {
     try {
       const { 
@@ -307,7 +325,8 @@ router.post('/:id/apply', authenticateToken, async (req, res) => {
         allowSeries,
         minEntries,
         maxEntries,
-        status
+        status,
+        contestTags // 🆕 追加
       } = req.body;
 
       // ✅ `Date` に変換できる場合は `Date` として保存、それ以外は `String`
@@ -367,6 +386,7 @@ router.post('/:id/apply', authenticateToken, async (req, res) => {
       contest.minEntries = parseInt(minEntries, 10) || 0;
       contest.maxEntries = parseInt(maxEntries, 10) || Infinity;
       contest.status = status;
+      contest.contestTags = contestTags ? JSON.parse(contestTags) : []; // 🆕 追加
 
       await contest.save();
 

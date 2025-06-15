@@ -22,6 +22,7 @@ import ImageSection from './formsections/ImageSection';
 import DateSection from './formsections/DateSection';
 import JudgeSection from './formsections/JudgeSection';
 import OptionSection from './formsections/OptionSection';
+import ContestTagSection from './formsections/ContestTagSection';
 import FormActions from './formsections/FormActions';
 
 // ユーティリティをインポート
@@ -87,6 +88,10 @@ const ContestCreate = ({ initialData, onSubmit }) => {
   const [minEntries, setMinEntries] = useState(initialData?.minEntries || getLocalStorageData('minEntries', ''));
   const [maxEntries, setMaxEntries] = useState(initialData?.maxEntries || getLocalStorageData('maxEntries', ''));
   
+  // 🆕 コンテストタグ
+  const [contestTags, setContestTags] = useState(initialData?.contestTags || getLocalStorageData('contestTags', []));
+  const [newContestTag, setNewContestTag] = useState('');
+  
   // ステータス
   const [status, setStatus] = useState(initialData?.status || getLocalStorageData('status', '開催予定'));
   
@@ -96,12 +101,14 @@ const ContestCreate = ({ initialData, onSubmit }) => {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
 
+  // 🆕 ステップにコンテストタグ設定を追加
   const steps = [
     'コンテスト基本情報',
     '詳細説明',
     '画像設定',
     '日程設定',
     '審査員と応募条件',
+    'コンテストタグ設定',
     '確認と作成'
   ];
 
@@ -256,6 +263,17 @@ const ContestCreate = ({ initialData, onSubmit }) => {
           </>
         );
       case 5:
+        // 🆕 コンテストタグ設定ステップ
+        return (
+          <ContestTagSection
+            contestTags={contestTags}
+            setContestTags={setContestTags}
+            newContestTag={newContestTag}
+            setNewContestTag={setNewContestTag}
+          />
+        );
+      case 6:
+        // 確認と作成ステップ
         return (
           <FormActions
             handlePreview={handlePreview}
@@ -333,6 +351,7 @@ const ContestCreate = ({ initialData, onSubmit }) => {
       minEntries,
       maxEntries,
       status,
+      contestTags, // 🆕 追加
     };
 
     saveFormData(formData);
@@ -363,6 +382,7 @@ const ContestCreate = ({ initialData, onSubmit }) => {
     minEntries,
     maxEntries,
     status,
+    contestTags, // 🆕 追加
   ]);
 
   // 保存された審査員データをロード
@@ -548,6 +568,7 @@ const ContestCreate = ({ initialData, onSubmit }) => {
       formData.append('minEntries', minEntries);
       formData.append('maxEntries', maxEntries);
       formData.append('status', status);
+      formData.append('contestTags', JSON.stringify(contestTags)); // 🆕 追加
 
       // APIリクエスト送信
       const response = await fetch(`/api/contests/create`, {
@@ -575,7 +596,7 @@ const ContestCreate = ({ initialData, onSubmit }) => {
     enableJudges, judges, allowFinishedWorks, allowPreStartDate,
     restrictAI, aiTags, allowR18, restrictGenres, genres,
     restrictWordCount, minWordCount, maxWordCount,
-    allowSeries, minEntries, maxEntries, status,
+    allowSeries, minEntries, maxEntries, status, contestTags, // 🆕 追加
     validateFormData, navigate
   ]);
 
@@ -618,6 +639,7 @@ const ContestCreate = ({ initialData, onSubmit }) => {
       minWordCount: minWordCount,
       maxWordCount: maxWordCount,
       minEntries: minEntries,
+      contestTags: contestTags, // 🆕 追加
     };
 
     // SessionStorageに保存
@@ -631,7 +653,7 @@ const ContestCreate = ({ initialData, onSubmit }) => {
     enableJudges, judges, status, headerPreview,
     allowFinishedWorks, allowPreStartDate, allowR18, allowSeries,
     restrictGenres, genres, restrictAI, aiTags,
-    minWordCount, maxWordCount, minEntries
+    minWordCount, maxWordCount, minEntries, contestTags // 🆕 追加
   ]);
 
   // 文字数表示関数

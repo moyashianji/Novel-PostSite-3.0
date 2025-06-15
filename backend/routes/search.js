@@ -60,13 +60,23 @@ router.get('/users', async (req, res) => {
         // Get additional stats for each user
         const enrichedUsers = await Promise.all(users.map(async (user) => {
             try {
-                // Get post count
-                const postCount = await Post.countDocuments({ author: user._id });
+                // Get post count - 公開作品のみカウント
+                const postCount = await Post.countDocuments({ 
+                    author: user._id, 
+                    publicityStatus: 'public' 
+                });
 
-                // Get series count
-                const seriesCount = await Series.countDocuments({ author: user._id });
+                // Get series count - 公開シリーズのみカウント
+                const seriesCount = await Series.countDocuments({ 
+                    author: user._id, 
+                    publicityStatus: 'public' 
+                });
 
-                const recentWorks = await Post.find({ author: user._id })
+                // 最近の作品も公開作品のみ取得
+                const recentWorks = await Post.find({ 
+                    author: user._id,
+                    publicityStatus: 'public' // ✅ 公開作品のみ
+                })
                     .sort({ createdAt: -1 })
                     .limit(6)
                     .select('title description content wordCount viewCounter goodCounter tags author isAdultContent aiEvidence')
@@ -164,7 +174,16 @@ router.get('/', async (req, res) => {
         console.log(`      ✅ mustNotIncludeTerms: ${mustNotIncludeTerms}`);
 
         // ✅ Elasticsearch のクエリ構築
-        let query = { bool: { must: [], should: [], must_not: [], filter: [] } };
+        let query = { 
+            bool: { 
+                must: [], 
+                should: [], 
+                must_not: [], 
+                filter: [
+                    { term: { "publicityStatus": "public" } } // ✅ 公開作品のみを検索対象に
+                ]
+            } 
+        };
 
         if (mustIncludeTerms.length > 0) {
             query.bool.must.push(...mustIncludeTerms.map(term => ({
@@ -230,6 +249,7 @@ router.get('/', async (req, res) => {
                 }
             });
         }
+        
         if (req.query.isCompleted !== undefined) {
             // 'true', 'false' の文字列をブール値に変換
             const isCompleted = req.query.isCompleted === 'true';
@@ -239,7 +259,9 @@ router.get('/', async (req, res) => {
                 }
             });
         }
+        
         console.log('[INFO] 🔍 Elasticsearch 検索クエリ:', JSON.stringify(query, null, 2));
+        console.log('[INFO] 🔒 公開作品のみを検索対象にフィルタリング適用');
 
         // Elasticsearchではソートを使用せず、単純にIDのリストを取得
         const response = await esClient.search({
@@ -288,7 +310,11 @@ router.get('/', async (req, res) => {
             const sortConfig = getSortConfig(sortBy);
             
             // MongoDB側でソートしつつ、指定されたIDのみを取得
-            const results = await Post.find({ _id: { $in: docIds } })
+            // ✅ MongoDB側でも公開作品のみに絞り込み（二重チェック）
+            const results = await Post.find({ 
+                _id: { $in: docIds },
+                publicityStatus: 'public' // ✅ 公開作品のみ
+            })
                 .populate('author')
                 .populate('series')
                 .sort(sortConfig)
@@ -307,8 +333,11 @@ router.get('/', async (req, res) => {
             });
         } else {
             // シリーズの場合の検索・ソート処理
-            // まずシリーズを取得
-            const seriesData = await Series.find({ _id: { $in: docIds } })
+            // ✅ シリーズも公開のみに絞り込み
+            const seriesData = await Series.find({ 
+                _id: { $in: docIds },
+                publicityStatus: 'public' // ✅ 公開シリーズのみ
+            })
                 .populate('author')
                 .populate({
                     path: 'posts.postId',
