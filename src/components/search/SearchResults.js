@@ -24,6 +24,7 @@ import BookmarkIcon from '@mui/icons-material/Bookmark';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'; // 🆕 コンテストタグ用アイコン
 import PostCard from "../post/PostCard";
 import SeriesCard from "../../components/series/SeriesCard";
 import UserCard from "../user/UserCard";
@@ -59,6 +60,7 @@ const SearchResults = () => {
   const initialLoadRef = useRef(true);
   const tagsScrollContainerRef = useRef(null);
   const aiTagsScrollContainerRef = useRef(null);
+  const contestTagScrollRef = useRef(null); // 🆕 コンテストタグ用ref
 
   // URLから検索パラメータを取得
   const searchParams = useMemo(() => {
@@ -114,10 +116,13 @@ const SearchResults = () => {
   // タグクラウド関連の状態
   const [tagCounts, setTagCounts] = useState([]);
   const [aiToolCounts, setAiToolCounts] = useState([]);
+  const [contestTagCounts, setContestTagCounts] = useState([]); // 🆕 コンテストタグクラウド
   const [showLeftScrollTag, setShowLeftScrollTag] = useState(false);
   const [showRightScrollTag, setShowRightScrollTag] = useState(true);
   const [showLeftScrollAiTag, setShowLeftScrollAiTag] = useState(false);
   const [showRightScrollAiTag, setShowRightScrollAiTag] = useState(true);
+  const [showLeftScrollContestTag, setShowLeftScrollContestTag] = useState(false); // 🆕
+  const [showRightScrollContestTag, setShowRightScrollContestTag] = useState(true); // 🆕
   
   // チャンク読み込みのための状態
   const [loadedChunks, setLoadedChunks] = useState(1);
@@ -213,8 +218,8 @@ const SearchResults = () => {
           // 全体の件数がCHUNK_SIZEより多い場合、まだ取得できるデータがあることを示す
           setHasMore(data.total > CHUNK_SIZE);
           
-          // タグとAIツールを集計
-          collectTagsAndAiTools(allData);
+          // タグ、AIツール、コンテストタグを集計
+          collectTagsAiToolsAndContestTags(allData);
           
         } else if (tab === "series") {
           const allData = data.results || [];
@@ -234,7 +239,7 @@ const SearchResults = () => {
           
           setHasMore(data.total > CHUNK_SIZE);
           
-          // シリーズのタグを集計（AIツールは対象外）
+          // シリーズのタグを集計（AIツールとコンテストタグは対象外）
           collectTagsOnly(allData);
           
         } else if (tab === "users") {
@@ -249,6 +254,7 @@ const SearchResults = () => {
           // ユーザータブの場合はタグ集計なし
           setTagCounts([]);
           setAiToolCounts([]);
+          setContestTagCounts([]); // 🆕
         }
 
         setCurrentPage(searchParams.page || 1);
@@ -263,8 +269,8 @@ const SearchResults = () => {
     fetchSearchResults();
   }, [searchParams, tab, postsData.all.length, seriesData.all.length, usersData.length]);
 
-  // タグとAIツールを集計する関数
-  const collectTagsAndAiTools = useCallback((data) => {
+  // 🆕 タグ、AIツール、コンテストタグを集計する関数
+  const collectTagsAiToolsAndContestTags = useCallback((data) => {
     // タグを集計
     const tagsMap = new Map();
     data.forEach(item => {
@@ -298,6 +304,23 @@ const SearchResults = () => {
       .map(([tool, count]) => ({ tool, count }));
     
     setAiToolCounts(sortedAiTools);
+
+    // 🆕 コンテストタグを集計
+    const contestTagsMap = new Map();
+    data.forEach(item => {
+      if (item.contestTags && Array.isArray(item.contestTags)) {
+        item.contestTags.forEach(tag => {
+          contestTagsMap.set(tag, (contestTagsMap.get(tag) || 0) + 1);
+        });
+      }
+    });
+    
+    // 出現回数でソート
+    const sortedContestTags = Array.from(contestTagsMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([tag, count]) => ({ tag, count }));
+    
+    setContestTagCounts(sortedContestTags);
   }, []);
 
   // シリーズの場合はタグのみを集計
@@ -319,8 +342,9 @@ const SearchResults = () => {
     
     setTagCounts(sortedTags);
     
-    // シリーズの場合はAIツールは対象外
+    // シリーズの場合はAIツールとコンテストタグは対象外
     setAiToolCounts([]);
+    setContestTagCounts([]); // 🆕
   }, []);
 
   // スクロールボタンの表示状態を更新する関数
@@ -336,6 +360,13 @@ const SearchResults = () => {
       setShowLeftScrollAiTag(scrollLeft > 0);
       setShowRightScrollAiTag(scrollLeft < scrollWidth - clientWidth - 10);
     }
+
+    // 🆕 コンテストタグスクロールボタンの表示状態を更新
+    if (contestTagScrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = contestTagScrollRef.current;
+      setShowLeftScrollContestTag(scrollLeft > 0);
+      setShowRightScrollContestTag(scrollLeft < scrollWidth - clientWidth - 10);
+    }
   }, []);
 
   // スクロールコンテナの初期化と監視
@@ -345,6 +376,7 @@ const SearchResults = () => {
     // スクロールイベントの監視
     const tagsContainer = tagsScrollContainerRef.current;
     const aiTagsContainer = aiTagsScrollContainerRef.current;
+    const contestTagContainer = contestTagScrollRef.current; // 🆕
     
     if (tagsContainer) {
       tagsContainer.addEventListener('scroll', updateScrollButtonsVisibility);
@@ -352,6 +384,11 @@ const SearchResults = () => {
     
     if (aiTagsContainer) {
       aiTagsContainer.addEventListener('scroll', updateScrollButtonsVisibility);
+    }
+
+    // 🆕 コンテストタグコンテナの監視を追加
+    if (contestTagContainer) {
+      contestTagContainer.addEventListener('scroll', updateScrollButtonsVisibility);
     }
     
     // リサイズイベントの監視
@@ -365,10 +402,15 @@ const SearchResults = () => {
       if (aiTagsContainer) {
         aiTagsContainer.removeEventListener('scroll', updateScrollButtonsVisibility);
       }
+
+      // 🆕 クリーンアップにコンテストタグも追加
+      if (contestTagContainer) {
+        contestTagContainer.removeEventListener('scroll', updateScrollButtonsVisibility);
+      }
       
       window.removeEventListener('resize', updateScrollButtonsVisibility);
     };
-  }, [tab, tagCounts, aiToolCounts, updateScrollButtonsVisibility]);
+  }, [tab, tagCounts, aiToolCounts, contestTagCounts, updateScrollButtonsVisibility]); // 🆕 contestTagCounts を依存配列に追加
 
   // タグスクロールハンドラー
   const handleTagsScroll = useCallback((direction) => {
@@ -394,6 +436,18 @@ const SearchResults = () => {
     }
   }, []);
 
+  // 🆕 コンテストタグスクロールハンドラー
+  const handleContestTagsScroll = useCallback((direction) => {
+    if (contestTagScrollRef.current) {
+      const scrollAmount = 200; // スクロール量
+      if (direction === 'left') {
+        contestTagScrollRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+      } else {
+        contestTagScrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      }
+    }
+  }, []);
+
   // タグクリックハンドラー
   const handleTagClick = useCallback((tag) => {
     // 検索クエリを更新
@@ -408,6 +462,16 @@ const SearchResults = () => {
     // 検索クエリを更新
     const updatedParams = new URLSearchParams(location.search);
     updatedParams.set("aiTool", tool);
+    updatedParams.set("page", "1");
+    navigate({ search: updatedParams.toString() });
+  }, [location.search, navigate]);
+
+  // 🆕 コンテストタグクリックハンドラー
+  const handleContestTagClick = useCallback((tag) => {
+    // 検索クエリを更新（コンテストタグ検索）
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.set("mustInclude", tag);
+    updatedParams.set("fields", "contestTags"); // 🆕 検索対象をコンテストタグに設定
     updatedParams.set("page", "1");
     navigate({ search: updatedParams.toString() });
   }, [location.search, navigate]);
@@ -470,9 +534,9 @@ const SearchResults = () => {
           setLoadedChunks(nextChunk);
           setHasMore(data.results.length === CHUNK_SIZE);
           
-          // タグとAIツールを更新
+          // タグ、AIツール、コンテストタグを更新
           const allItems = [...postsData.all, ...newItems];
-          collectTagsAndAiTools(allItems);
+          collectTagsAiToolsAndContestTags(allItems);
         }
       } else if (tab === "series") {
         const newItems = data.results || [];
@@ -522,7 +586,7 @@ const SearchResults = () => {
     } finally {
       setFetchingMore(false);
     }
-  }, [hasMore, fetchingMore, searchParams, tab, loadedChunks, postsData.all, seriesData.all, collectTagsAndAiTools, collectTagsOnly]);
+  }, [hasMore, fetchingMore, searchParams, tab, loadedChunks, postsData.all, seriesData.all, collectTagsAiToolsAndContestTags, collectTagsOnly]);
 
   // ユーザーのフォロー状態を取得
   const fetchFollowStatus = async (userResults) => {
@@ -1237,6 +1301,97 @@ const SearchResults = () => {
     );
   }, [aiToolCounts, handleAiToolClick, handleAiTagsScroll, showLeftScrollAiTag, showRightScrollAiTag, tab, theme]);
 
+  // 🆕 コンテストタグクラウドのレンダリング
+  const renderContestTagCloud = useMemo(() => {
+    if (tab === 'users' || tab === 'series' || contestTagCounts.length === 0) return null;
+    
+    return (
+      <Box sx={{ position: 'relative', my: 2 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          mb: 1.5,
+          justifyContent: 'space-between',
+          pl: 1
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <EmojiEventsIcon fontSize="small" sx={{ mr: 1, color: 'primary.main' }} />
+            <Typography variant="subtitle1" fontWeight="500">
+              コンテストタグクラウド
+            </Typography>
+            <Typography variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
+              （クリックで検索）
+            </Typography>
+          </Box>
+          
+          <Box sx={{ display: 'flex' }}>
+            {showLeftScrollContestTag && (
+              <IconButton size="small" onClick={() => handleContestTagsScroll('left')}>
+                <NavigateBeforeIcon />
+              </IconButton>
+            )}
+            {showRightScrollContestTag && (
+              <IconButton size="small" onClick={() => handleContestTagsScroll('right')}>
+                <NavigateNextIcon />
+              </IconButton>
+            )}
+          </Box>
+        </Box>
+        
+        <Box
+          ref={contestTagScrollRef}
+          sx={{
+            display: 'flex',
+            flexWrap: 'nowrap',
+            overflowX: 'auto',
+            gap: 1,
+            pb: 1,
+            px: 1,
+            scrollbarWidth: 'thin',
+            scrollBehavior: 'smooth',
+            '&::-webkit-scrollbar': {
+              height: 6,
+            },
+            '&::-webkit-scrollbar-track': {
+              backgroundColor: 'rgba(0,0,0,0.1)',
+              borderRadius: 3,
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: 'rgba(0,0,0,0.3)',
+              borderRadius: 3,
+            },
+          }}
+        >
+          {contestTagCounts.map(({ tag, count }) => (
+            <Chip
+              key={tag}
+              label={`${tag} (${count})`}
+              variant="outlined"
+              color="primary"
+              clickable
+              onClick={() => handleContestTagClick(tag)}
+              sx={{
+                minWidth: 'auto',
+                whiteSpace: 'nowrap',
+                fontSize: '0.8rem',
+                height: 32,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                flexShrink: 0,
+                '&:hover': {
+                  backgroundColor: 'primary.light',
+                  color: 'white',
+                  transform: 'translateY(-1px)',
+                  boxShadow: 2,
+                },
+              }}
+            />
+          ))}
+        </Box>
+      </Box>
+    );
+  }, [tab, contestTagCounts, showLeftScrollContestTag, showRightScrollContestTag, handleContestTagsScroll, handleContestTagClick]);
+
   // 表示するコンテンツを決定
   const renderContent = () => {
     if (loading && !paginatedData.length) {
@@ -1454,6 +1609,9 @@ const SearchResults = () => {
       
       {/* AIツールクラウド */}
       {renderAiToolCloud}
+
+      {/* 🆕 コンテストタグクラウド */}
+      {renderContestTagCloud}
 
       {/* 検索結果情報とページサイズ設定 */}
       <Box sx={{ 
