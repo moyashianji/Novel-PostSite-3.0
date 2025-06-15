@@ -4,7 +4,7 @@ import {
   Container, Grid, Typography, CircularProgress, 
   Box, Pagination, Tabs, Tab, Chip, Alert, Paper,
   Menu, MenuItem, Button, Select, FormControl, InputLabel,
-  useTheme, IconButton
+  useTheme, IconButton, Tooltip, Popper, Fade
 } from "@mui/material";
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import SearchIcon from '@mui/icons-material/Search';
@@ -28,6 +28,7 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'; // 🆕 コンテ
 import PostCard from "../post/PostCard";
 import SeriesCard from "../../components/series/SeriesCard";
 import UserCard from "../user/UserCard";
+import ContestCard from "../contest/ContestCard";
 
 // ページごとのアイテム数の選択肢
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
@@ -123,6 +124,13 @@ const SearchResults = () => {
   const [showRightScrollAiTag, setShowRightScrollAiTag] = useState(true);
   const [showLeftScrollContestTag, setShowLeftScrollContestTag] = useState(false); // 🆕
   const [showRightScrollContestTag, setShowRightScrollContestTag] = useState(true); // 🆕
+  
+  // 🆕 コンテスト情報の状態管理
+  const [contestInfo, setContestInfo] = useState({});
+  const [hoveredContestTag, setHoveredContestTag] = useState(null);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const hoverTimeoutRef = useRef(null);
+  const hideTimeoutRef = useRef(null); // 🆕 非表示用タイマー
   
   // チャンク読み込みのための状態
   const [loadedChunks, setLoadedChunks] = useState(1);
@@ -268,6 +276,18 @@ const SearchResults = () => {
 
     fetchSearchResults();
   }, [searchParams, tab, postsData.all.length, seriesData.all.length, usersData.length]);
+
+  // 🆕 クリーンアップ：コンポーネントアンマウント時にタイマーをクリア
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // 🆕 タグ、AIツール、コンテストタグを集計する関数
   const collectTagsAiToolsAndContestTags = useCallback((data) => {
@@ -475,6 +495,77 @@ const SearchResults = () => {
     updatedParams.set("page", "1");
     navigate({ search: updatedParams.toString() });
   }, [location.search, navigate]);
+
+  // 🆕 コンテストタグマウスオーバーハンドラー
+  const handleContestTagMouseEnter = useCallback(async (event, tag) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+
+    // すでにキャッシュされている場合はすぐに表示
+    if (contestInfo[tag]) {
+      setHoveredContestTag(tag);
+      setAnchorEl(event.currentTarget);
+      return;
+    }
+
+    // 0.5秒のタイマーを設定
+    hoverTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/contests/by-tag/${encodeURIComponent(tag)}`);
+        
+        if (response.ok) {
+          const contests = await response.json();
+          
+          // キャッシュに保存
+          setContestInfo(prev => ({
+            ...prev,
+            [tag]: contests
+          }));
+          
+          // ツールチップを表示
+          setHoveredContestTag(tag);
+          setAnchorEl(event.currentTarget);
+        }
+      } catch (error) {
+        console.error('コンテスト情報の取得に失敗しました:', error);
+      }
+    }, 500); // 0.5秒後に表示
+  }, [contestInfo]);
+
+  // 🆕 コンテストタグマウスリーブハンドラー
+  const handleContestTagMouseLeave = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+
+    // 3秒後にツールチップを非表示にする
+    hideTimeoutRef.current = setTimeout(() => {
+      setHoveredContestTag(null);
+      setAnchorEl(null);
+    }, 3000); // 3秒間表示を維持
+  }, []);
+
+  // 🆕 ツールチップ内のマウスエンター/リーブハンドラー
+  const handleTooltipMouseEnter = useCallback(() => {
+    // ツールチップ内ではクローズタイマーをクリア
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handleTooltipMouseLeave = useCallback(() => {
+    // ツールチップから離れたら3秒後に非表示
+    hideTimeoutRef.current = setTimeout(() => {
+      setHoveredContestTag(null);
+      setAnchorEl(null);
+    }, 3000);
+  }, []);
 
   // 追加データを読み込む関数
   const loadMoreData = useCallback(async () => {
@@ -1320,7 +1411,7 @@ const SearchResults = () => {
               コンテストタグクラウド
             </Typography>
             <Typography variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
-              （クリックで検索）
+              （ホバーでコンテスト情報、クリックで検索）
             </Typography>
           </Box>
           
@@ -1370,6 +1461,8 @@ const SearchResults = () => {
               color="primary"
               clickable
               onClick={() => handleContestTagClick(tag)}
+              onMouseEnter={(e) => handleContestTagMouseEnter(e, tag)}
+              onMouseLeave={handleContestTagMouseLeave}
               sx={{
                 minWidth: 'auto',
                 whiteSpace: 'nowrap',
@@ -1388,9 +1481,117 @@ const SearchResults = () => {
             />
           ))}
         </Box>
+
+        {/* 🆕 コンテストタグのツールチップ */}
+        <Popper
+          open={Boolean(hoveredContestTag && anchorEl)}
+          anchorEl={anchorEl}
+          placement="bottom-start"
+          transition
+          style={{ zIndex: 9999 }}
+          modifiers={[
+            {
+              name: 'offset',
+              options: {
+                offset: [0, 8],
+              },
+            },
+          ]}
+        >
+          {({ TransitionProps }) => (
+            <Fade {...TransitionProps} timeout={200}>
+              <Paper
+                sx={{
+                  minWidth: 300,
+                  maxWidth: 400,
+                  p: 2,
+                  borderRadius: 2,
+                  boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+                  backgroundColor: 'background.paper',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  zIndex: 9999,
+                  position: 'relative',
+                }}
+                onMouseEnter={handleTooltipMouseEnter}
+                onMouseLeave={handleTooltipMouseLeave}
+              >
+                {hoveredContestTag && contestInfo[hoveredContestTag] ? (
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                      「{hoveredContestTag}」のコンテスト
+                    </Typography>
+                    {contestInfo[hoveredContestTag].length > 0 ? (
+                      <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
+                        {contestInfo[hoveredContestTag].slice(0, 2).map((contest) => (
+                          <Box 
+                            key={contest._id} 
+                            sx={{ 
+                              mb: 2, 
+                              '&:last-child': { mb: 0 },
+                              cursor: 'pointer',
+                              transition: 'transform 0.2s ease',
+                              '&:hover': {
+                                transform: 'scale(1.02)'
+                              }
+                            }}
+                            onClick={() => {
+                              navigate(`/contests/${contest._id}`);
+                              // ツールチップを閉じる
+                              setHoveredContestTag(null);
+                              setAnchorEl(null);
+                            }}
+                          >
+                            <ContestCard contest={contest} compact={true} />
+                          </Box>
+                        ))}
+                        {contestInfo[hoveredContestTag].length > 2 && (
+                          <Box
+                            sx={{
+                              mt: 1,
+                              p: 1,
+                              borderRadius: 1,
+                              backgroundColor: 'action.hover',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              '&:hover': {
+                                backgroundColor: 'action.selected',
+                                transform: 'translateY(-1px)'
+                              }
+                            }}
+                            onClick={() => {
+                              // コンテスト一覧ページに遷移（タグ検索付き）
+                              navigate(`/contests?tag=${encodeURIComponent(hoveredContestTag)}`);
+                              // ツールチップを閉じる
+                              setHoveredContestTag(null);
+                              setAnchorEl(null);
+                            }}
+                          >
+                            <Typography variant="caption" color="primary.main" fontWeight="500">
+                              他 {contestInfo[hoveredContestTag].length - 2} 件のコンテストを見る →
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        関連するコンテストが見つかりませんでした
+                      </Typography>
+                    )}
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CircularProgress size={16} />
+                    <Typography variant="body2">読み込み中...</Typography>
+                  </Box>
+                )}
+              </Paper>
+            </Fade>
+          )}
+        </Popper>
       </Box>
     );
-  }, [tab, contestTagCounts, showLeftScrollContestTag, showRightScrollContestTag, handleContestTagsScroll, handleContestTagClick]);
+  }, [tab, contestTagCounts, showLeftScrollContestTag, showRightScrollContestTag, handleContestTagsScroll, handleContestTagClick, handleContestTagMouseEnter, handleContestTagMouseLeave, hoveredContestTag, anchorEl, contestInfo, handleTooltipMouseEnter, handleTooltipMouseLeave]);
 
   // 表示するコンテンツを決定
   const renderContent = () => {
