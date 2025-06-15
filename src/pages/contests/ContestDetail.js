@@ -113,7 +113,6 @@ const ContestDetail = () => {
   const [selectedWorkForCancellation, setSelectedWorkForCancellation] = useState(null);
   const [judgeDetails, setJudgeDetails] = useState({});
   const [creatorInfo, setCreatorInfo] = useState(null);
-  const [sortOrder, setSortOrder] = useState('latest');
   const [tabValue, setTabValue] = useState(0);
   const theme = useTheme();
   const navigate = useNavigate();
@@ -278,27 +277,26 @@ const ContestDetail = () => {
     }
   };
 
-  const sortedEntries = useMemo(() => {
-    if (!contest || !contest.entries) return [];
-    const sorted = [...contest.entries];
-
-    switch (sortOrder) {
-      case 'latest':
-        return sorted.sort((a, b) => new Date(b.submissionDate) - new Date(a.submissionDate));
-      case 'oldest':
-        return sorted.sort((a, b) => new Date(a.submissionDate) - new Date(b.submissionDate));
-      case 'mostViewed':
-        return sorted.sort((a, b) => b.postId.viewCount - a.postId.viewCount);
-      case 'mostLiked':
-        return sorted.sort((a, b) => b.postId.likes - a.postId.likes);
-      default:
-        return sorted;
-    }
-  }, [contest, sortOrder]);
-
   const handleTagClick = useCallback((tag) => {
     navigate(`/search?mustInclude=${encodeURIComponent(tag)}`);
   }, [navigate]);
+
+  const handleContestTagClick = useCallback((tag) => {
+    // コンテストタグで検索ページに遷移：コンテストタブ、完全一致、作品タブを選択した状態
+    navigate(`/search?tab=contests&mustInclude=${encodeURIComponent(tag)}&fields=contestTags&tagSearchType=exact`);
+  }, [navigate]);
+
+  // 応募作品タブクリック時に検索ページに遷移する関数
+  const handleEntriesTabClick = useCallback(() => {
+    if (contest && contest.contestTags && contest.contestTags.length > 0) {
+      // コンテストの最初のcontestTagで検索ページに遷移：コンテストタブ、完全一致、作品タブを選択した状態
+      const firstContestTag = contest.contestTags[0];
+      navigate(`/search?tab=contests&mustInclude=${encodeURIComponent(firstContestTag)}&fields=contestTags&tagSearchType=exact`);
+    } else if (contest && contest.title) {
+      // contestTagsがない場合はコンテスト名で検索（フォールバック）
+      navigate(`/search?tab=contests&mustInclude=${encodeURIComponent(contest.title)}&fields=contestTags&tagSearchType=exact`);
+    }
+  }, [navigate, contest]);
 
   const getStatusChip = useCallback((status) => {
     switch (status) {
@@ -382,6 +380,11 @@ const ContestDetail = () => {
   }, []);
 
   const handleTabChange = (event, newValue) => {
+    // 応募作品タブ（index 2）がクリックされた場合
+    if (newValue === 2) {
+      handleEntriesTabClick();
+      return; // タブの切り替えは行わない
+    }
     setTabValue(newValue);
   };
 
@@ -439,6 +442,7 @@ const ContestDetail = () => {
             getStatusChip={getStatusChip}
             handleOpenModal={handleOpenModal}
             isContestActive={isContestActive}
+            handleContestTagClick={handleContestTagClick}
           />
         </Grid>
 
@@ -475,6 +479,11 @@ const ContestDetail = () => {
               } 
               iconPosition="start" 
               label="応募作品" 
+              sx={{
+                '&:hover': {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                }
+              }}
             />
             {contest.enableJudges && contest.judges.length > 0 && (
               <Tab icon={<VerifiedUserIcon />} iconPosition="start" label="審査員" />
@@ -496,18 +505,11 @@ const ContestDetail = () => {
             <EntryConditions
               contest={contest}
               renderStatusChip={renderStatusChip}
-              handleTagClick={handleTagClick}
+              handleTagClick={handleContestTagClick}
             />
           </Box>
 
-          <Box sx={{ display: tabValue === 2 ? 'block' : 'none' }}>
-            <EntriesList
-              contest={contest}
-              sortedEntries={sortedEntries}
-              sortOrder={sortOrder}
-              setSortOrder={setSortOrder}
-            />
-          </Box>
+          {/* 応募作品タブの内容は削除し、代わりに検索ページへ遷移 */}
 
           {contest.enableJudges && contest.judges.length > 0 && (
             <Box sx={{ display: tabValue === 3 ? 'block' : 'none' }}>
@@ -641,7 +643,7 @@ const HeaderBanner = ({ headerImage, title, status, getStatusChip }) => (
 );
 
 // サイドバー
-const Sidebar = React.memo(({ creatorInfo, contest, getStatusChip, handleOpenModal, isContestActive }) => (
+const Sidebar = React.memo(({ creatorInfo, contest, getStatusChip, handleOpenModal, isContestActive, handleContestTagClick }) => (
   <StickyContainer>
     <Paper 
       elevation={3} 
@@ -747,6 +749,49 @@ const Sidebar = React.memo(({ creatorInfo, contest, getStatusChip, handleOpenMod
         {/* コンテスト情報 */}
         <Box sx={{ mt: 3 }}>
           <List disablePadding>
+            {/* コンテストタグ */}
+            {contest.contestTags && contest.contestTags.length > 0 && (
+              <>
+                <ListItem sx={{ px: 0, py: 1.5 }}>
+                  <ListItemText 
+                    primary={
+                      <Typography variant="body2" color="text.secondary">
+                        コンテストタグ
+                      </Typography>
+                    }
+                    secondary={
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                        {contest.contestTags.map((tag, index) => (
+                          <Chip
+                            key={index}
+                            label={tag}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                            onClick={() => handleContestTagClick(tag)}
+                            sx={{ 
+                              fontWeight: 'medium',
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                              '&:hover': {
+                                backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                                transform: 'translateY(-1px)',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                              },
+                              transition: 'all 0.2s ease',
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    }
+                    disableTypography
+                  />
+                </ListItem>
+                
+                <Divider />
+              </>
+            )}
+            
             <ListItem sx={{ px: 0, py: 1.5 }}>
               <ListItemText 
                 primary={
@@ -1271,113 +1316,6 @@ const JudgesInfo = React.memo(({ contest }) => (
             </Grid>
           ))}
         </Grid>
-      </Box>
-    </Paper>
-  </Box>
-));
-
-// 応募作品一覧
-const EntriesList = React.memo(({
-  contest,
-  sortedEntries,
-  sortOrder,
-  setSortOrder,
-}) => (
-  <Box mb={4}>
-    <Paper
-      elevation={3}
-      sx={{
-        borderRadius: 3,
-        overflow: 'hidden',
-      }}
-    >
-      <Box 
-        sx={{ 
-          bgcolor: 'warning.main', 
-          p: 2, 
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <EmojiEventsIcon sx={{ mr: 1 }} />
-          <Typography variant="h6" fontWeight="bold">
-            応募作品一覧
-          </Typography>
-        </Box>
-        <Chip 
-          label={`${contest.entries.length}作品`} 
-          color="default"
-          sx={{ 
-            fontWeight: 'bold', 
-            bgcolor: 'white',
-            color: 'warning.main'
-          }} 
-        />
-      </Box>
-      
-      <Box sx={{ p: 3 }}>
-        <Box 
-          sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between',
-            mb: 3,
-          }}
-        >
-          <Typography variant="subtitle1" fontWeight="medium">
-            応募作品を表示しています
-          </Typography>
-          <FormControl sx={{ minWidth: 200 }} size="small">
-            <InputLabel>表示順</InputLabel>
-            <Select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
-              label="表示順"
-            >
-              <MenuItem value="latest">最新順</MenuItem>
-              <MenuItem value="oldest">古い順</MenuItem>
-              <MenuItem value="mostViewed">閲覧数が多い順</MenuItem>
-              <MenuItem value="mostLiked">いいね数が多い順</MenuItem>
-            </Select>
-          </FormControl>
-        </Box>
-        
-        {contest.entries.length > 0 ? (
-          <Grid container spacing={3}>
-            {sortedEntries.map((entry) => (
-              <Grid item xs={12} sm={6} key={entry.postId._id}>
-                <Fade in={true} timeout={500}>
-                  <Box>
-                    <PostCard post={entry.postId} />
-                  </Box>
-                </Fade>
-              </Grid>
-            ))}
-          </Grid>
-        ) : (
-          <Paper 
-            elevation={0} 
-            sx={{ 
-              p: 5,
-              textAlign: 'center',
-              bgcolor: 'rgba(0,0,0,0.02)',
-              borderRadius: 2,
-              border: '1px dashed',
-              borderColor: 'divider'
-            }}
-          >
-            <EmojiEventsIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              まだ応募作品がありません
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              あなたが最初の応募者になりませんか？
-            </Typography>
-          </Paper>
-        )}
       </Box>
     </Paper>
   </Box>
