@@ -3,7 +3,7 @@ import {
   Box, Typography, Container, Skeleton,
   Alert, Paper, Grid, Chip, Divider,
   Breadcrumbs, Button, Avatar, Card,
-  IconButton, Tooltip
+  IconButton, Tooltip, useTheme
 } from '@mui/material';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { styled } from '@mui/system';
@@ -16,17 +16,22 @@ import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import WarningIcon from '@mui/icons-material/Warning';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
+import PersonIcon from '@mui/icons-material/Person';
+import LocalOfferIcon from '@mui/icons-material/LocalOffer';
+import StarIcon from '@mui/icons-material/Star';
 import PostCard from '../components/post/PostCard';
 import { useAuth } from '../context/AuthContext';
 
-// スタイル付きコンポーネント
+// スタイル付きコンポーネント - モダンで洗練されたデザイン
 const SeriesInfoCard = styled(Card)(({ theme }) => ({
-  borderRadius: theme.shape.borderRadius * 2,
+  borderRadius: theme.spacing(3),
   overflow: 'hidden',
-  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
-  marginBottom: theme.spacing(4),
+  boxShadow: '0 16px 40px rgba(0, 0, 0, 0.1)',
+  marginBottom: theme.spacing(5),
   background: 'transparent',
   position: 'relative',
+  transition: 'all 0.3s ease-in-out',
+  border: 'none',
 }));
 
 const HeaderBackground = styled(Box)(({ theme }) => ({
@@ -34,101 +39,170 @@ const HeaderBackground = styled(Box)(({ theme }) => ({
   top: 0,
   left: 0,
   right: 0,
-  height: '180px',
-  background: 'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)',
+  height: '220px',
+  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
   zIndex: 0,
+  '&::after': {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'linear-gradient(45deg, rgba(102, 126, 234, 0.8), rgba(118, 75, 162, 0.9))',
+  }
 }));
 
 const ContentWrapper = styled(Box)(({ theme }) => ({
   position: 'relative',
   zIndex: 1,
-  padding: theme.spacing(3),
-  paddingTop: theme.spacing(12),
+  padding: theme.spacing(4),
+  paddingTop: theme.spacing(8),
+  background: 'rgba(255, 255, 255, 0.05)',
+  backdropFilter: 'blur(20px)',
 }));
 
 const AuthorCard = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   marginBottom: theme.spacing(3),
-  padding: theme.spacing(2),
-  borderRadius: theme.shape.borderRadius,
-  backgroundColor: 'rgba(255, 255, 255, 0.8)',
-  backdropFilter: 'blur(10px)',
-  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+  padding: theme.spacing(3),
+  borderRadius: theme.spacing(2),
+  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  backdropFilter: 'blur(20px)',
+  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15)',
+  }
+}));
+
+const SeriesDescriptionCard = styled(Box)(({ theme }) => ({
+  marginTop: theme.spacing(3),
+  padding: theme.spacing(4),
+  borderRadius: theme.spacing(3),
+  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  backdropFilter: 'blur(20px)',
+  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15)',
+  }
 }));
 
 const StatsCard = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  flexDirection: 'column',
-  padding: theme.spacing(2),
-  borderRadius: theme.shape.borderRadius,
-  backgroundColor: theme.palette.background.paper,
-  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
+  padding: theme.spacing(3),
+  borderRadius: theme.spacing(2),
+  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  backdropFilter: 'blur(20px)',
+  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
   height: '100%',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15)',
+  }
 }));
 
 const StatsItem = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
-  marginBottom: theme.spacing(1),
-  padding: theme.spacing(1),
-  borderRadius: theme.shape.borderRadius / 2,
-  backgroundColor: 'rgba(0, 0, 0, 0.02)',
+  marginBottom: theme.spacing(2),
+  padding: theme.spacing(1.5),
+  borderRadius: theme.spacing(1),
+  backgroundColor: 'rgba(248, 250, 252, 0.8)',
+  transition: 'all 0.2s ease',
+  '&:hover': {
+    backgroundColor: 'rgba(248, 250, 252, 1)',
+    transform: 'translateX(4px)',
+  },
+  '&:last-child': {
+    marginBottom: 0,
+  }
 }));
 
 const StatIcon = styled(Box)(({ theme, color }) => ({
+  width: 40,
+  height: 40,
+  borderRadius: '50%',
+  backgroundColor: color,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  width: 36,
-  height: 36,
-  borderRadius: '50%',
-  backgroundColor: color || theme.palette.primary.light,
-  color: theme.palette.common.white,
-  marginRight: theme.spacing(1.5),
+  marginRight: theme.spacing(2),
+  color: 'white',
+  boxShadow: `0 4px 12px ${color}40`,
+}));
+
+const FollowButton = styled(Button)(({ theme, isfollowing }) => ({
+  borderRadius: theme.spacing(2),
+  padding: theme.spacing(1, 3),
+  fontWeight: 'bold',
+  textTransform: 'none',
+  fontSize: '0.95rem',
+  boxShadow: isfollowing === 'true' 
+    ? '0 4px 12px rgba(25, 118, 210, 0.3)' 
+    : '0 4px 12px rgba(0, 0, 0, 0.1)',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: isfollowing === 'true' 
+      ? '0 6px 16px rgba(25, 118, 210, 0.4)' 
+      : '0 6px 16px rgba(0, 0, 0, 0.15)',
+  }
+}));
+
+const WorksSection = styled(Box)(({ theme }) => ({
+  marginTop: theme.spacing(4),
+}));
+
+const SectionTitle = styled(Typography)(({ theme }) => ({
+  fontWeight: 'bold',
+  marginBottom: theme.spacing(3),
+  display: 'flex',
+  alignItems: 'center',
+  position: 'relative',
+  '&::after': {
+    content: '""',
+    position: 'absolute',
+    bottom: '-8px',
+    left: 0,
+    width: '60px',
+    height: '4px',
+    backgroundColor: theme.palette.primary.main,
+    borderRadius: '2px',
+  }
 }));
 
 const EpisodeNumber = styled(Box)(({ theme }) => ({
   position: 'absolute',
-  left: -16,
+  left: -8,
   top: 16,
-  backgroundColor: theme.palette.primary.main,
-  color: theme.palette.primary.contrastText,
-  width: 32,
-  height: 32,
+  width: 40,
+  height: 40,
   borderRadius: '50%',
+  backgroundColor: theme.palette.primary.main,
+  color: 'white',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   fontWeight: 'bold',
-  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-  zIndex: 1
-}));
-
-const FollowButton = styled(Button)(({ theme, isfollowing }) => ({
-  borderRadius: 50,
-  paddingLeft: theme.spacing(3),
-  paddingRight: theme.spacing(3),
-  fontWeight: 'bold',
-  textTransform: 'none',
-  minWidth: 140,
-  boxShadow: 'none',
-  transition: 'all 0.3s ease',
-  backgroundColor: isfollowing === 'true' ? theme.palette.primary.main : theme.palette.background.paper,
-  color: isfollowing === 'true' ? 'white' : theme.palette.primary.main,
-  border: `1px solid ${theme.palette.primary.main}`,
-  '&:hover': {
-    boxShadow: '0 4px 12px rgba(30, 68, 157, 0.3)',
-    transform: 'translateY(-2px)',
-    backgroundColor: isfollowing === 'true' ? theme.palette.primary.dark : theme.palette.primary.light,
-    color: 'white',
-  },
+  fontSize: '0.9rem',
+  zIndex: 10,
+  boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
 }));
 
 const WorksInSeries = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const theme = useTheme();
   const { isAuthenticated } = useAuth();
+  
   const [works, setWorks] = useState([]);
   const [series, setSeries] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -227,30 +301,34 @@ const WorksInSeries = () => {
     }
   };
 
-  // 作品をエピソード番号で並べ替え
-  const sortedWorks = works && works.length
-    ? [...works].sort((a, b) => a.episodeNumber - b.episodeNumber)
+  // ソート済みの作品リスト
+  const sortedWorks = works && works.length ? 
+    [...works].sort((a, b) => a.episodeNumber - b.episodeNumber)
     : [];
 
   if (loading) {
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
-        <Skeleton variant="rectangular" height={200} sx={{ mb: 4, borderRadius: 2 }} />
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Skeleton variant="rectangular" height={220} sx={{ mb: 4, borderRadius: 3 }} />
         <Skeleton variant="text" height={60} sx={{ mb: 2 }} />
-        {[1, 2, 3].map(i => (
-          <Skeleton key={i} variant="rectangular" height={120} sx={{ mb: 2, borderRadius: 1 }} />
-        ))}
+        <Grid container spacing={3}>
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <Grid item xs={12} sm={6} md={4} key={i}>
+              <Skeleton variant="rectangular" height={300} sx={{ borderRadius: 2 }} />
+            </Grid>
+          ))}
+        </Grid>
       </Container>
     );
   }
 
   if (error) {
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
-        <Alert severity="error" sx={{ mb: 4 }}>
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="error" sx={{ mb: 4, borderRadius: 2 }}>
           エラーが発生しました: {error}
         </Alert>
-        <Button variant="outlined" onClick={() => navigate(-1)}>
+        <Button variant="outlined" onClick={() => navigate(-1)} sx={{ borderRadius: 2 }}>
           戻る
         </Button>
       </Container>
@@ -258,12 +336,12 @@ const WorksInSeries = () => {
   }
 
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* パンくずリスト */}
       <Breadcrumbs
         separator={<NavigateNextIcon fontSize="small" />}
         aria-label="breadcrumb"
-        sx={{ mb: 3 }}
+        sx={{ mb: 4 }}
       >
         <Link to="/" style={{ display: 'flex', alignItems: 'center', color: 'inherit', textDecoration: 'none' }}>
           <HomeIcon sx={{ mr: 0.5 }} fontSize="small" />
@@ -283,13 +361,17 @@ const WorksInSeries = () => {
         <SeriesInfoCard elevation={0}>
           <HeaderBackground />
           <ContentWrapper>
-            {/* タイトルと警告ラベル */}
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-              <Typography variant="h4" sx={{
+            {/* タイトルエリア */}
+            <Box sx={{ 
+              textAlign: 'center',
+              mb: 4
+            }}>
+              <Typography variant="h2" sx={{
                 fontWeight: 'bold',
-                mr: 2,
                 color: 'white',
-                textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                textShadow: '0 4px 8px rgba(0,0,0,0.3)',
+                fontSize: { xs: '2rem', md: '3rem' },
+                mb: 2
               }}>
                 {series.title}
               </Typography>
@@ -298,15 +380,117 @@ const WorksInSeries = () => {
                   icon={<WarningIcon />}
                   label="R18"
                   color="error"
-                  size="small"
-                  sx={{ fontWeight: 'bold' }}
+                  size="medium"
+                  sx={{ 
+                    fontWeight: 'bold',
+                    fontSize: '1rem',
+                    height: 36
+                  }}
                 />
               )}
             </Box>
 
+            {/* シリーズフォローボタンエリア */}
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'center',
+              mb: 4,
+              gap: 2,
+              flexWrap: 'wrap'
+            }}>
+              <Paper sx={{
+                p: 3,
+                borderRadius: 3,
+                backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                backdropFilter: 'blur(20px)',
+                boxShadow: '0 12px 40px rgba(0, 0, 0, 0.2)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                flexWrap: 'wrap',
+                justifyContent: 'center'
+              }}>
+                {isAuthenticated ? (
+                  <FollowButton
+                    variant={isFollowing ? "contained" : "outlined"}
+                    isfollowing={isFollowing.toString()}
+                    onClick={handleFollowToggle}
+                    disabled={followLoading}
+                    startIcon={isFollowing ? <BookmarkIcon /> : <BookmarkBorderIcon />}
+                    size="large"
+                    sx={{ 
+                      minWidth: 220,
+                      fontSize: '1.1rem',
+                      py: 1.5,
+                      fontWeight: 'bold',
+                      boxShadow: isFollowing 
+                        ? '0 6px 20px rgba(25, 118, 210, 0.4)' 
+                        : '0 6px 20px rgba(0, 0, 0, 0.15)',
+                      background: isFollowing 
+                        ? 'linear-gradient(45deg, #1976d2, #42a5f5)'
+                        : 'linear-gradient(45deg, #ffffff, #f5f5f5)',
+                      color: isFollowing ? 'white' : '#1976d2',
+                      border: isFollowing ? 'none' : '2px solid #1976d2',
+                      '&:hover': {
+                        transform: 'translateY(-2px)',
+                        boxShadow: isFollowing 
+                          ? '0 8px 25px rgba(25, 118, 210, 0.5)' 
+                          : '0 8px 25px rgba(0, 0, 0, 0.2)',
+                        background: isFollowing 
+                          ? 'linear-gradient(45deg, #1565c0, #1976d2)'
+                          : 'linear-gradient(45deg, #1976d2, #42a5f5)',
+                        color: 'white'
+                      }
+                    }}
+                  >
+                    {followLoading ? '処理中...' : isFollowing ? 'シリーズをフォロー中' : 'このシリーズをフォロー'}
+                  </FollowButton>
+                ) : (
+                  <Tooltip title="ログインが必要です">
+                    <span>
+                      <FollowButton
+                        variant="outlined"
+                        isfollowing="false"
+                        disabled
+                        startIcon={<BookmarkBorderIcon />}
+                        size="large"
+                        sx={{ 
+                          minWidth: 220,
+                          fontSize: '1.1rem',
+                          py: 1.5,
+                          fontWeight: 'bold',
+                          opacity: 0.7,
+                          backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                          border: '2px solid rgba(25, 118, 210, 0.5)',
+                          color: 'rgba(25, 118, 210, 0.7)'
+                        }}
+                      >
+                        このシリーズをフォロー
+                      </FollowButton>
+                    </span>
+                  </Tooltip>
+                )}
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center',
+                  px: 3,
+                  py: 1.5,
+                  borderRadius: 2,
+                  backgroundColor: 'rgba(248, 250, 252, 0.9)',
+                  border: '1px solid rgba(0, 0, 0, 0.08)'
+                }}>
+                  <PersonIcon sx={{ mr: 1, color: 'primary.main' }} />
+                  <Typography variant="body1" fontWeight="medium" color="text.primary">
+                    {followerCount.toLocaleString()}人がフォロー中
+                  </Typography>
+                </Box>
+              </Paper>
+            </Box>
+
             {/* 主要コンテンツ */}
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={8}>
+            <Grid container spacing={4}>
+              <Grid item xs={12} lg={8}>
                 {/* 作者情報カード */}
                 <AuthorCard>
                   {series.author && (
@@ -314,138 +498,162 @@ const WorksInSeries = () => {
                       <Avatar
                         src={series.author.icon}
                         alt={series.author.nickname}
-                        sx={{
-                          width: 64,
-                          height: 64,
-                          mr: 2,
-                          border: '3px solid white',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                        sx={{ 
+                          width: 64, 
+                          height: 64, 
+                          mr: 3,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
                         }}
-                      />
-                      <Box sx={{ flexGrow: 1 }}>
-                        <Link to={`/user/${series.author._id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                          <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
-                            {series.author.nickname || '不明な作者'}
-                          </Typography>
-                        </Link>
-                        {series.createdAt && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
-                            <AccessTimeIcon sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
-                            <Typography variant="body2" color="text.secondary">
-                              {new Date(series.createdAt).toLocaleDateString('ja-JP')}に投稿
-                            </Typography>
-                          </Box>
-                        )}
+                      >
+                        <PersonIcon fontSize="large" />
+                      </Avatar>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="h6" fontWeight="bold" sx={{ mb: 0.5 }}>
+                          {series.author.nickname}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          この作品の作者
+                        </Typography>
                       </Box>
-                      
-                      {/* フォローボタン */}
-                      <Box sx={{ ml: 2 }}>
-                        {isAuthenticated ? (
-                          <FollowButton
-                            variant={isFollowing ? "contained" : "outlined"}
-                            isfollowing={isFollowing.toString()}
-                            onClick={handleFollowToggle}
-                            disabled={followLoading}
-                            startIcon={isFollowing ? <BookmarkIcon /> : <BookmarkBorderIcon />}
-                          >
-                            {followLoading ? '処理中...' : isFollowing ? 'フォロー中' : 'フォローする'}
-                          </FollowButton>
-                        ) : (
-                          <Tooltip title="ログインが必要です">
-                            <span>
-                              <FollowButton
-                                variant="outlined"
-                                isfollowing="false"
-                                disabled
-                                startIcon={<BookmarkBorderIcon />}
-                              >
-                                フォローする
-                              </FollowButton>
-                            </span>
-                          </Tooltip>
-                        )}
-                      </Box>
+                      <Button
+                        variant="text"
+                        onClick={() => navigate(`/user/${series.author._id}`)}
+                        sx={{
+                          borderRadius: 2,
+                          textTransform: 'none',
+                          fontWeight: 'medium'
+                        }}
+                      >
+                        作者ページへ
+                      </Button>
                     </Box>
                   )}
                 </AuthorCard>
 
                 {/* シリーズ説明 */}
-                <Box sx={{
-                  mt: 2,
-                  p: 3,
-                  borderRadius: 2,
-                  backgroundColor: 'background.paper',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-                }}>
-                  <Typography variant="body1" sx={{ mb: 2, lineHeight: 1.8 }}>
+                <SeriesDescriptionCard>
+                  <Typography variant="h6" sx={{ 
+                    fontWeight: 'bold',
+                    mb: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    color: theme.palette.primary.main
+                  }}>
+                    <BookIcon sx={{ mr: 1 }} />
+                    あらすじ
+                  </Typography>
+                  <Typography variant="body1" sx={{ 
+                    mb: 3, 
+                    lineHeight: 1.8,
+                    fontSize: '1.1rem'
+                  }}>
                     {series.description}
                   </Typography>
 
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 2 }}>
+                  <Divider sx={{ mb: 3 }} />
+
+                  <Typography variant="h6" sx={{ 
+                    fontWeight: 'bold',
+                    mb: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    color: theme.palette.secondary.main
+                  }}>
+                    <LocalOfferIcon sx={{ mr: 1 }} />
+                    タグ
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                     {series.tags?.map((tag, i) => (
                       <Chip
                         key={i}
                         label={tag}
-                        size="small"
-                        sx={{ mr: 1, mb: 1 }}
+                        size="medium"
+                        sx={{ 
+                          borderRadius: 2,
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            transform: 'translateY(-1px)',
+                            boxShadow: '0 4px 8px rgba(0,0,0,0.15)'
+                          }
+                        }}
                         color="primary"
                         variant="outlined"
                         onClick={() => navigate(`/search?mustInclude=${encodeURIComponent(tag)}&type=series`)}
                       />
                     ))}
                   </Box>
-                </Box>
+                </SeriesDescriptionCard>
               </Grid>
 
               {/* 統計情報 */}
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} lg={4}>
                 <StatsCard>
-                  <Typography variant="h6" sx={{
+                  <Typography variant="h5" sx={{
                     fontWeight: 'bold',
-                    mb: 2,
+                    mb: 3,
                     display: 'flex',
                     alignItems: 'center'
                   }}>
-                    <BookIcon sx={{ mr: 1 }} />
-                    シリーズ情報
+                    <BookIcon sx={{ mr: 1.5, color: theme.palette.primary.main }} />
+                    シリーズ統計
                   </Typography>
 
-                  <Divider sx={{ mb: 2 }} />
+                  <Divider sx={{ mb: 3 }} />
 
                   <StatsItem>
                     <StatIcon color="#4caf50">
                       <BookIcon fontSize="small" />
                     </StatIcon>
-                    <Typography variant="body1" fontWeight="medium">
-                      全{works.length}話
-                    </Typography>
+                    <Box>
+                      <Typography variant="h6" fontWeight="bold">
+                        {sortedWorks.length}話
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        総エピソード数
+                      </Typography>
+                    </Box>
                   </StatsItem>
 
                   <StatsItem>
                     <StatIcon color="#9c27b0">
                       <BookmarkIcon fontSize="small" />
                     </StatIcon>
-                    <Typography variant="body1" fontWeight="medium">
-                      フォロワー {followerCount}人
-                    </Typography>
+                    <Box>
+                      <Typography variant="h6" fontWeight="bold">
+                        {followerCount.toLocaleString()}人
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        フォロワー
+                      </Typography>
+                    </Box>
                   </StatsItem>
 
                   <StatsItem>
                     <StatIcon color="#f44336">
                       <ThumbUpIcon fontSize="small" />
                     </StatIcon>
-                    <Typography variant="body1" fontWeight="medium">
-                      いいね 累計{works.reduce((sum, work) => sum + (work.goodCounter || 0), 0)}
-                    </Typography>
+                    <Box>
+                      <Typography variant="h6" fontWeight="bold">
+                        {sortedWorks.reduce((sum, work) => sum + (work.goodCounter || 0), 0).toLocaleString()}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        いいね累計
+                      </Typography>
+                    </Box>
                   </StatsItem>
 
                   <StatsItem>
                     <StatIcon color="#2196f3">
                       <VisibilityIcon fontSize="small" />
                     </StatIcon>
-                    <Typography variant="body1" fontWeight="medium">
-                      閲覧 累計{works.reduce((sum, work) => sum + (work.viewCounter || 0), 0)}
-                    </Typography>
+                    <Box>
+                      <Typography variant="h6" fontWeight="bold">
+                        {sortedWorks.reduce((sum, work) => sum + (work.viewCounter || 0), 0).toLocaleString()}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        閲覧累計
+                      </Typography>
+                    </Box>
                   </StatsItem>
                 </StatsCard>
               </Grid>
@@ -454,14 +662,14 @@ const WorksInSeries = () => {
         </SeriesInfoCard>
       )}
 
-      {/* 作品一覧 */}
-      <Box>
-        <Typography variant="h5" sx={{ mb: 3, fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
-          <BookIcon sx={{ mr: 1 }} />
-          作品一覧（{works.length}話）
-        </Typography>
+      {/* 作品一覧セクション */}
+      <WorksSection>
+        <SectionTitle variant="h4">
+          <BookIcon sx={{ mr: 2, color: theme.palette.primary.main }} />
+          作品一覧（{sortedWorks.length}話）
+        </SectionTitle>
 
-        {works.length > 0 ? (
+        {sortedWorks.length > 0 ? (
           <Grid container spacing={3}>
             {sortedWorks.map((work) => (
               <Grid item xs={12} key={work._id}>
@@ -477,11 +685,23 @@ const WorksInSeries = () => {
             ))}
           </Grid>
         ) : (
-          <Alert severity="info">
-            このシリーズにはまだ作品がありません。
-          </Alert>
+          <Box sx={{ 
+            py: 8, 
+            textAlign: 'center',
+            backgroundColor: 'rgba(248, 250, 252, 0.8)',
+            borderRadius: 3,
+            border: '2px dashed rgba(0, 0, 0, 0.1)'
+          }}>
+            <BookIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              まだ作品が投稿されていません
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              このシリーズの最初の作品をお待ちください。
+            </Typography>
+          </Box>
         )}
-      </Box>
+      </WorksSection>
     </Container>
   );
 };

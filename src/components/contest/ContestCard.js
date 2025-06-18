@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { 
   Box, 
   Button, 
@@ -10,13 +10,14 @@ import {
   Chip,
   IconButton,
   Tooltip,
-  Stack,
   Grid,
-  useTheme
+  useTheme,
+  Paper
 } from '@mui/material';
-import { Link, useNavigate } from 'react-router-dom';
+import { styled } from '@mui/material/styles';
+import { useNavigate } from 'react-router-dom';
 
-// Import icons
+// 必要なアイコンのみインポート
 import EditIcon from '@mui/icons-material/Edit';
 import DateRangeIcon from '@mui/icons-material/DateRange';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
@@ -27,15 +28,192 @@ import TagIcon from '@mui/icons-material/Tag';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import InfoIcon from '@mui/icons-material/Info';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import StyleIcon from '@mui/icons-material/Style';
+import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
+
+// スタイル定数
+const cardStyles = {
+  borderRadius: 3,
+  transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+  background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)',
+  '&:hover': {
+    transform: 'translateY(-8px) scale(1.02)',
+    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
+  }
+};
+
+const imageStyles = {
+  height: 160,
+  overflow: 'hidden',
+  position: 'relative',
+  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+};
+
+// 軽量化されたスタイルコンポーネント
+const StyledCard = styled(Card)(() => cardStyles);
+
+const StatusBadge = styled(Chip)(() => ({
+  position: 'absolute',
+  top: 16,
+  right: 16,
+  zIndex: 3,
+  fontWeight: 'bold',
+  fontSize: '0.8rem',
+  height: 32,
+}));
+
+const EditButton = styled(IconButton)(() => ({
+  position: 'absolute',
+  top: 16,
+  left: 16,
+  zIndex: 3,
+  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  backdropFilter: 'blur(10px)',
+  '&:hover': { 
+    backgroundColor: 'white',
+    transform: 'scale(1.1)',
+  }
+}));
+
+// タグスタイル関数（計算量削減）
+const getChipStyle = (chiptype, theme) => {
+  const colorMap = {
+    genre: theme?.palette?.primary?.main || '#1976d2',
+    contestTag: theme?.palette?.secondary?.main || '#9c27b0',
+    tag: theme?.palette?.info?.main || '#0288d1'
+  };
+  
+  const color = colorMap[chiptype] || colorMap.genre;
+  
+  return {
+    margin: '2px',
+    borderRadius: 12,
+    backgroundColor: `${color}14`,
+    color: color,
+    border: `1px solid ${color}33`,
+    fontSize: '0.75rem',
+    height: 28,
+    '&:hover': {
+      backgroundColor: color,
+      color: 'white',
+      transform: 'translateY(-1px)',
+    },
+  };
+};
+
+// メモ化されたタグコンポーネント
+const TagChip = React.memo(({ tag, chiptype, icon, onClick }) => {
+  const theme = useTheme();
+  const style = useMemo(() => getChipStyle(chiptype, theme), [chiptype, theme]);
+  
+  return (
+    <Chip
+      icon={icon}
+      label={tag}
+      size="small"
+      onClick={onClick}
+      sx={style}
+    />
+  );
+});
+
+// メモ化された統計アイテム
+const StatItem = React.memo(({ icon, value, label }) => (
+  <Box sx={{ 
+    display: 'flex', 
+    alignItems: 'center', 
+    p: 1, 
+    borderRadius: 1, 
+    backgroundColor: '#f5f5f5',
+    '&:hover': { backgroundColor: '#e3f2fd' }
+  }}>
+    {icon}
+    <Box sx={{ ml: 1 }}>
+      <Typography variant="h6" sx={{ lineHeight: 1, fontWeight: 'bold' }}>
+        {value}
+      </Typography>
+      <Typography variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+    </Box>
+  </Box>
+));
+
+// メモ化されたタグセクション
+const TagSection = React.memo(({ title, tags, icon, chiptype, onTagClick, compact, maxTags }) => {
+  const displayTags = useMemo(() => tags?.slice(0, maxTags) || [], [tags, maxTags]);
+  const remainingCount = tags?.length > maxTags ? tags.length - maxTags : 0;
+  
+  if (!tags?.length) return null;
+  
+  return (
+    <Box sx={{ mb: 1.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+        {icon}
+        <Typography variant="caption" fontWeight="medium" color="text.secondary" sx={{ ml: 0.5 }}>
+          {title}
+        </Typography>
+      </Box>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
+        {displayTags.map((tag, index) => (
+          <TagChip
+            key={`${chiptype}-${index}`}
+            tag={tag}
+            chiptype={chiptype}
+            icon={icon}
+            onClick={(e) => onTagClick(tag, e)}
+          />
+        ))}
+        {remainingCount > 0 && (
+          <TagChip
+            tag={`+${remainingCount}`}
+            chiptype={chiptype}
+          />
+        )}
+      </Box>
+    </Box>
+  );
+});
+
+// 日付フォーマット関数（メモ化）
+const formatDate = (dateString) => {
+  if (!dateString || isNaN(Date.parse(dateString))) return dateString;
+  
+  const date = new Date(dateString);
+  const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
+  
+  let formatted = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+  
+  if (hasTime) {
+    formatted += ` ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+  }
+  
+  return formatted;
+};
+
+// ステータス設定（従来のMUIカラー使用）
+const getStatusColor = (status) => {
+  switch (status) {
+    case '募集中': return 'success';
+    case '開催予定': return 'info';
+    case '募集一時停止中': return 'warning';
+    case '募集終了': return 'default';
+    default: return 'primary';
+  }
+};
+
+const getStatusIcon = (status) => {
+  switch (status) {
+    case '募集中': return <EmojiEventsIcon fontSize="small" />;
+    case '開催予定': return <ScheduleIcon fontSize="small" />;
+    case '募集一時停止中': return <InfoIcon fontSize="small" />;
+    case '募集終了': return <AccessTimeIcon fontSize="small" />;
+    default: return <EmojiEventsIcon fontSize="small" />;
+  }
+};
 
 /**
- * 汎用的なコンテストカードコンポーネント
- * @param {object} contest - コンテストオブジェクト
- * @param {string} currentUserId - 現在のユーザーID（コンテスト作成者かどうかを判定するため）
- * @param {function} onViewDetails - 詳細ボタンがクリックされたときのハンドラ（任意）
- * @param {function} onEdit - 編集ボタンがクリックされたときのハンドラ（任意）
- * @param {string} buttonText - 詳細ボタンのテキスト（デフォルト: "詳細を見る"）
- * @param {boolean} compact - コンパクト表示モード（デフォルト: false）
+ * 超軽量化コンテストカード
  */
 const ContestCard = ({ 
   contest, 
@@ -48,201 +226,124 @@ const ContestCard = ({
   const navigate = useNavigate();
   const theme = useTheme();
   
-  // コンテストが存在しない場合
-  if (!contest) return null;
+  // すべてのHooksを条件分岐の前に呼び出す
+  const statusColor = useMemo(() => 
+    contest ? getStatusColor(contest.status) : 'primary', 
+    [contest?.status]
+  );
   
-  // 日付フォーマット関数
-  const formatDate = (dateString) => {
-    // 日付として解析できるか確認
-    if (dateString && !isNaN(Date.parse(dateString))) {
-      const date = new Date(dateString);
-      
-      // 時間と分の情報が設定されているか確認（00:00以外の時間が設定されている場合）
-      const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
-      
-      // 基本的な日付フォーマット
-      let formattedDate = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-      
-      // 時間と分の情報も追加
-      if (hasTime) {
-        // 時間と分をゼロパディングする
-        const hours = date.getHours().toString().padStart(2, '0');
-        const minutes = date.getMinutes().toString().padStart(2, '0');
-        formattedDate += ` ${hours}:${minutes}`;
-      }
-      
-      return formattedDate;
-    }
-    // 解析できない場合はそのまま返す
-    return dateString;
-  };
-
-  // タブのカラースキーマを取得する関数
-  const getStatusColorScheme = (status) => {
-    switch (status) {
-      case '募集中':
-        return {
-          bgcolor: theme.palette.success.main,
-          lightBg: theme.palette.success.light,
-          color: 'success',
-          icon: <EmojiEventsIcon fontSize="small" />
-        };
-      case '開催予定':
-        return {
-          bgcolor: theme.palette.info.main,
-          lightBg: theme.palette.info.light,
-          color: 'info',
-          icon: <ScheduleIcon fontSize="small" />
-        };
-      case '募集一時停止中':
-        return {
-          bgcolor: theme.palette.warning.main,
-          lightBg: theme.palette.warning.light,
-          color: 'warning',
-          icon: <InfoIcon fontSize="small" />
-        };
-      case '募集終了':
-        return {
-          bgcolor: theme.palette.grey[600],
-          lightBg: theme.palette.grey[200],
-          color: 'default',
-          icon: <AccessTimeIcon fontSize="small" />
-        };
-      default:
-        return {
-          bgcolor: theme.palette.primary.main,
-          lightBg: theme.palette.primary.light,
-          color: 'primary',
-          icon: <EmojiEventsIcon fontSize="small" />
-        };
-    }
-  };
+  const statusIcon = useMemo(() => 
+    contest ? getStatusIcon(contest.status) : <EmojiEventsIcon fontSize="small" />, 
+    [contest?.status]
+  );
   
-  // 詳細を表示する関数
-  const handleViewDetails = () => {
+  const totalTags = useMemo(() => 
+    contest ? (contest.genres?.length || 0) + (contest.contestTags?.length || 0) + (contest.tags?.length || 0) : 0,
+    [contest?.genres?.length, contest?.contestTags?.length, contest?.tags?.length]
+  );
+  
+  const entriesCount = useMemo(() => contest?.entries?.length || 0, [contest?.entries?.length]);
+  
+  const maxTags = compact ? 3 : 5;
+  const isCreator = currentUserId && contest?.creator === currentUserId;
+  
+  // メモ化されたハンドラー
+  const handleViewDetails = useCallback(() => {
+    if (!contest) return;
     if (onViewDetails) {
       onViewDetails(contest._id);
     } else {
       navigate(`/contests/${contest._id}`);
     }
-  };
+  }, [onViewDetails, contest?._id, navigate, contest]);
   
-  // 編集する関数
-  const handleEdit = (e) => {
+  const handleEdit = useCallback((e) => {
+    if (!contest) return;
     e.stopPropagation();
     if (onEdit) {
       onEdit(contest._id);
     } else {
       navigate(`/contest-edit/${contest._id}`);
     }
-  };
+  }, [onEdit, contest?._id, navigate, contest]);
+
+  const handleGenreClick = useCallback((genre, e) => {
+    e.stopPropagation();
+    navigate(`/search?mustInclude=${encodeURIComponent(genre)}&type=contests&fields=genres`);
+  }, [navigate]);
+
+  const handleContestTagClick = useCallback((tag, e) => {
+    e.stopPropagation();
+    navigate(`/search?mustInclude=${encodeURIComponent(tag)}&type=posts&fields=contestTags`);
+  }, [navigate]);
+
+  const handleTagClick = useCallback((tag, e) => {
+    e.stopPropagation();
+    navigate(`/search?mustInclude=${encodeURIComponent(tag)}&type=contests&fields=tags`);
+  }, [navigate]);
   
-  // コンパクトモード用のスタイル調整
-  const imageHeight = compact ? 120 : 160;
-  const cardContentPadding = compact ? 1.5 : 2;
-  const titleLines = compact ? 1 : 2;
-  const descriptionLines = compact ? 2 : 3;
+  // Early return for null contest (すべてのHooksの後)
+  if (!contest) return null;
   
   return (
-    <Card
-      elevation={1}
-      sx={{
-        position: 'relative',
-        borderRadius: 2,
-        overflow: 'hidden',
-        transition: 'all 0.2s ease-in-out',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        '&:hover': {
-          transform: 'translateY(-3px)',
-          boxShadow: 3,
-        }
-      }}
-    >
-      {/* Status badge */}
-      <Chip
-        icon={getStatusColorScheme(contest.status).icon}
+    <StyledCard sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* ステータスバッジ - 従来のMUIスタイル */}
+      <StatusBadge
+        icon={statusIcon}
         label={contest.status}
-        color={getStatusColorScheme(contest.status).color}
+        color={statusColor}
         size="small"
-        sx={{
-          position: 'absolute',
-          top: 10,
-          right: 10,
-          zIndex: 2,
-          fontWeight: 'bold',
-          fontSize: '0.75rem'
-        }}
       />
       
-      {/* Edit button for contest creator */}
-      {currentUserId && contest.creator === currentUserId && (
+      {/* 編集ボタン */}
+      {isCreator && (
         <Tooltip title="コンテストを編集する">
-          <IconButton
-            size="small"
-            color="primary"
-            sx={{
-              position: 'absolute',
-              top: 10,
-              left: 10,
-              zIndex: 2,
-              bgcolor: 'white',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-              '&:hover': { 
-                bgcolor: 'white'
-              }
-            }}
-            onClick={handleEdit}
-          >
+          <EditButton size="small" onClick={handleEdit}>
             <EditIcon fontSize="small" />
-          </IconButton>
+          </EditButton>
         </Tooltip>
       )}
       
-      {/* Card Image */}
-      <Link 
-        to={`/contests/${contest._id}`} 
-        style={{ textDecoration: 'none', color: 'inherit' }}
+      {/* 画像エリア */}
+      <Box 
+        onClick={handleViewDetails}
+        sx={{ ...imageStyles, cursor: 'pointer' }}
       >
-        <Box sx={{ position: 'relative', height: imageHeight, overflow: 'hidden' }}>
-          <CardMedia
-            component="img"
-            image={`${contest.iconImage}`}
-            alt={contest.title}
-            sx={{
-              height: '100%',
-              objectFit: 'cover',
-            }}
-          />
-        </Box>
-      </Link>
+        <CardMedia
+          component="img"
+          image={contest.iconImage}
+          alt={contest.title}
+          sx={{
+            height: '100%',
+            objectFit: 'cover',
+            transition: 'transform 0.4s ease',
+            '&:hover': { transform: 'scale(1.1)' }
+          }}
+        />
+      </Box>
       
-      <CardContent sx={{ p: cardContentPadding, flexGrow: 1 }}>
-        {/* Title */}
-        <Link 
-          to={`/contests/${contest._id}`} 
-          style={{ textDecoration: 'none', color: 'inherit' }}
+      <CardContent sx={{ p: 2.5, flexGrow: 1 }}>
+        {/* タイトル */}
+        <Typography 
+          variant={compact ? "h6" : "h5"} 
+          onClick={handleViewDetails}
+          sx={{ 
+            fontWeight: 'bold',
+            lineHeight: 1.2,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            minHeight: compact ? 28 : 48,
+            mb: 1.5,
+            cursor: 'pointer'
+          }}
         >
-          <Typography 
-            variant={compact ? "subtitle1" : "h6"} 
-            gutterBottom
-            sx={{ 
-              fontWeight: 'bold',
-              lineHeight: 1.3,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              display: '-webkit-box',
-              WebkitLineClamp: titleLines,
-              WebkitBoxOrient: 'vertical',
-              minHeight: compact ? 24 : 50
-            }}
-          >
-            {contest.title}
-          </Typography>
-        </Link>
+          {contest.title}
+        </Typography>
         
-        {/* Description */}
+        {/* 説明 */}
         <Typography 
           variant="body2" 
           color="text.secondary" 
@@ -251,116 +352,122 @@ const ContestCard = ({
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             display: '-webkit-box',
-            WebkitLineClamp: descriptionLines,
+            WebkitLineClamp: compact ? 1 : 2,
             WebkitBoxOrient: 'vertical',
-            minHeight: compact ? 40 : 60,
             lineHeight: 1.5
           }}
         >
           {contest.shortDescription}
         </Typography>
 
-        {/* Genres */}
-        {contest.genres && contest.genres.length > 0 && (
-          <Box sx={{ mb: 2 }}>
-            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ gap: 0.5 }}>
-              {contest.genres.slice(0, compact ? 2 : 3).map((genre, index) => (
-                <Chip
-                  key={index}
-                  icon={<TagIcon fontSize="small" />}
-                  label={genre}
-                  size="small"
-                  sx={{ 
-                    height: 24, 
-                    fontSize: '0.75rem',
-                    '& .MuiChip-icon': { 
-                      fontSize: 16,
-                      marginLeft: '4px'
-                    }
-                  }}
-                />
-              ))}
-              {contest.genres.length > (compact ? 2 : 3) && (
-                <Chip
-                  label={`+${contest.genres.length - (compact ? 2 : 3)}`}
-                  size="small"
-                  sx={{ height: 24, fontSize: '0.75rem' }}
-                />
-              )}
-            </Stack>
-          </Box>
-        )}
+        {/* タグセクション */}
+        <TagSection
+          title="ジャンル"
+          tags={contest.genres}
+          icon={<LocalLibraryIcon sx={{ fontSize: 16, color: 'primary.main' }} />}
+          chiptype="genre"
+          onTagClick={handleGenreClick}
+          compact={compact}
+          maxTags={maxTags}
+        />
+
+        <TagSection
+          title="コンテストタグ"
+          tags={contest.contestTags}
+          icon={<StyleIcon sx={{ fontSize: 16, color: 'secondary.main' }} />}
+          chiptype="contestTag"
+          onTagClick={handleContestTagClick}
+          compact={compact}
+          maxTags={maxTags}
+        />
+
+        <TagSection
+          title="タグ"
+          tags={contest.tags}
+          icon={<TagIcon sx={{ fontSize: 16, color: 'info.main' }} />}
+          chiptype="tag"
+          onTagClick={handleTagClick}
+          compact={compact}
+          maxTags={maxTags}
+        />
         
-        <Divider sx={{ mb: 2 }} />
-        
-        {/* Stats */}
-        <Grid container spacing={1}>
+        {/* 統計情報 */}
+        <Grid container spacing={1.5} sx={{ mt: 1.5, mb: 1.5 }}>
           <Grid item xs={6}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <GroupsIcon 
-                sx={{ fontSize: 18, color: 'primary.main', mr: 0.5, opacity: 0.8 }} 
-              />
-              <Typography variant="body2" fontWeight="medium">
-                {contest.entries ? contest.entries.length : 0} 応募
-              </Typography>
-            </Box>
+            <StatItem
+              icon={<GroupsIcon sx={{ fontSize: 18, color: 'primary.main' }} />}
+              value={entriesCount}
+              label="応募"
+            />
           </Grid>
           
           <Grid item xs={6}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <LocalLibraryIcon 
-                sx={{ fontSize: 18, color: 'primary.main', mr: 0.5, opacity: 0.8 }} 
-              />
-              <Typography variant="body2" fontWeight="medium">
-                {contest.genres ? contest.genres.length : 0} ジャンル
-              </Typography>
-            </Box>
+            <StatItem
+              icon={<TagIcon sx={{ fontSize: 18, color: 'secondary.main' }} />}
+              value={totalTags}
+              label="総タグ数"
+            />
           </Grid>
         </Grid>
         
-        {/* Dates */}
+        {/* 日程情報 */}
         {!compact && (
-          <Box sx={{ mt: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 0.5 }}>
-              <DateRangeIcon 
-                fontSize="small" 
-                sx={{ color: 'text.secondary', mr: 1, mt: 0.3, fontSize: 18 }} 
-              />
-              <Box>
-                <Typography variant="body2" fontWeight="medium" color="text.secondary">
-                  応募期間
+          <Paper elevation={0} sx={{ 
+            p: 1.5,
+            mt: 1.5,
+            borderRadius: 2, 
+            backgroundColor: '#fafafa',
+            border: '1px solid rgba(0, 0, 0, 0.06)'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+              <DateRangeIcon sx={{ fontSize: 16, color: 'primary.main', mr: 1 }} />
+              <Typography variant="caption" fontWeight="bold">
+                応募期間
+              </Typography>
+            </Box>
+            <Box sx={{ pl: 2.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.25 }}>
+                <FiberManualRecordIcon sx={{ fontSize: 6, color: 'success.main', mr: 1 }} />
+                <Typography variant="caption">
+                  開始: {formatDate(contest.applicationStartDate)}
                 </Typography>
-                <Typography variant="body2">
-                  {formatDate(contest.applicationStartDate)} 〜 <br/>
-                  {formatDate(contest.applicationEndDate)}
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <FiberManualRecordIcon sx={{ fontSize: 6, color: 'error.main', mr: 1 }} />
+                <Typography variant="caption">
+                  終了: {formatDate(contest.applicationEndDate)}
                 </Typography>
               </Box>
             </Box>
-          </Box>
+          </Paper>
         )}
       </CardContent>
       
       <Divider />
       
-      {/* Button */}
-      <Box sx={{ p: compact ? 1.5 : 2, pt: compact ? 1 : 1 }}>
+      {/* アクションボタン */}
+      <Box sx={{ p: 2.5, pt: 1.5 }}>
         <Button
-          variant="outlined"
-          color="primary"
+          variant="contained"
           fullWidth
           endIcon={<ArrowForwardIcon />}
           onClick={handleViewDetails}
           sx={{
             borderRadius: 2,
-            py: compact ? 0.5 : 0.8,
+            p: 1.2,
             textTransform: 'none',
-            fontWeight: 'bold'
+            fontWeight: 'bold',
+            background: 'linear-gradient(45deg, #667eea 0%, #764ba2 100%)',
+            '&:hover': {
+              background: 'linear-gradient(45deg, #5a67d8 0%, #6b46c1 100%)',
+              transform: 'translateY(-2px)',
+            }
           }}
         >
           {buttonText}
         </Button>
       </Box>
-    </Card>
+    </StyledCard>
   );
 };
 
