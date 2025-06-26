@@ -1,4 +1,3 @@
-// src/components/SeriesCreationModal.js
 import React, { useState, useCallback, memo } from 'react';
 import {
   Box,
@@ -22,7 +21,6 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 
-// メモ化したモーダルコンポーネント
 const SeriesCreationModal = memo(({ open, onClose, onCreateSeries }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -32,33 +30,34 @@ const SeriesCreationModal = memo(({ open, onClose, onCreateSeries }) => {
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState([]);
   const [newTag, setNewTag] = useState('');
-  const [isOriginal, setIsOriginal] = useState(true); // ラジオボタンを使用するため値を変更
+  const [isOriginal, setIsOriginal] = useState(true);
   const [isAdultContent, setIsAdultContent] = useState(false);
+  const [publicityStatus, setPublicityStatus] = useState('public'); // 🆕 公開設定を追加
   
   // エラー状態
   const [titleError, setTitleError] = useState('');
   const [descriptionError, setDescriptionError] = useState('');
 
+  // 🆕 公開設定変更ハンドラを追加
+  const handlePublicityStatusChange = useCallback((e) => {
+    setPublicityStatus(e.target.value);
+  }, []);
 
-  
-  // タイトル変更ハンドラをメモ化
+  // その他のハンドラー（既存のまま）
   const handleTitleChange = useCallback((e) => {
     setTitle(e.target.value);
     setTitleError('');
   }, []);
 
-  // 説明文変更ハンドラをメモ化
   const handleDescriptionChange = useCallback((e) => {
     setDescription(e.target.value);
     setDescriptionError('');
   }, []);
 
-  // タグ入力変更ハンドラをメモ化
   const handleTagChange = useCallback((e) => {
     setNewTag(e.target.value);
   }, []);
 
-  // タグの追加ハンドラをメモ化
   const handleAddTag = useCallback(() => {
     if (newTag && tags.length < 10 && !tags.includes(newTag)) {
       setTags(prevTags => [...prevTags, newTag]);
@@ -66,22 +65,18 @@ const SeriesCreationModal = memo(({ open, onClose, onCreateSeries }) => {
     }
   }, [newTag, tags]);
 
-  // タグの削除ハンドラをメモ化
   const handleRemoveTag = useCallback((tagToRemove) => {
     setTags(prevTags => prevTags.filter(tag => tag !== tagToRemove));
   }, []);
 
-  // オリジナル作品設定ハンドラをメモ化
   const handleOriginalChange = useCallback((e) => {
     setIsOriginal(e.target.value === 'yes');
   }, []);
 
-  // 年齢制限設定ハンドラをメモ化
   const handleAdultContentChange = useCallback((e) => {
     setIsAdultContent(e.target.value === 'adult');
   }, []);
 
-  // Enterキーでタグ追加
   const handleKeyPress = useCallback((e) => {
     if (e.key === 'Enter' && newTag && tags.length < 10 && !tags.includes(newTag)) {
       e.preventDefault();
@@ -97,12 +92,13 @@ const SeriesCreationModal = memo(({ open, onClose, onCreateSeries }) => {
     setNewTag('');
     setIsOriginal(true);
     setIsAdultContent(false);
+    setPublicityStatus('public'); // 🆕 公開設定をリセット
     setTitleError('');
     setDescriptionError('');
     onClose();
   }, [onClose]);
 
-  // 送信ハンドラをメモ化
+  // 送信ハンドラ修正
   const handleSubmit = useCallback(() => {
     // バリデーション
     let hasError = false;
@@ -125,12 +121,13 @@ const SeriesCreationModal = memo(({ open, onClose, onCreateSeries }) => {
       tags,
       isOriginal,
       isAdultContent,
-      aiGenerated: true, // APIとの互換性のために常にtrueを送信
+      aiGenerated: true,
+      publicityStatus // 🆕 公開設定を追加
     };
 
     onCreateSeries(seriesData);
     handleClose();
-  }, [title, description, tags, isOriginal, isAdultContent, onCreateSeries, handleClose]);
+  }, [title, description, tags, isOriginal, isAdultContent, publicityStatus, onCreateSeries, handleClose]);
 
   return (
     <Modal
@@ -197,7 +194,7 @@ const SeriesCreationModal = memo(({ open, onClose, onCreateSeries }) => {
                 value={description}
                 onChange={handleDescriptionChange}
                 error={Boolean(descriptionError)}
-                helperText={descriptionError || 'シリーズの内容を簡潔に説明してください（20～2000文字）'}
+                helperText={descriptionError || 'シリーズのあらすじを入力してください（20～2000文字）'}
                 inputProps={{ maxLength: 2000 }}
                 required
               />
@@ -208,56 +205,42 @@ const SeriesCreationModal = memo(({ open, onClose, onCreateSeries }) => {
             
             {/* タグ入力 */}
             <Box mb={3}>
-              <Typography variant="subtitle2" fontWeight="medium" mb={1}>
-                タグ設定
-              </Typography>
-              <Box display="flex" gap={1} mb={1}>
-                <TextField
-                  label="タグを追加"
-                  variant="outlined"
-                  fullWidth
-                  size="small"
-                  value={newTag}
-                  onChange={handleTagChange}
-                  onKeyPress={handleKeyPress}
-                  disabled={tags.length >= 10}
-                  placeholder="タグを入力してEnterキーまたは追加ボタンを押してください"
-                />
-                <Button 
-                  variant="contained" 
-                  size="small"
-                  onClick={handleAddTag} 
-                  disabled={!newTag || tags.length >= 10 || tags.includes(newTag)}
-                  startIcon={<AddIcon />}
-                >
-                  追加
-                </Button>
-              </Box>
-              <Typography variant="caption" display="block" mb={1}>
-                {tags.length}/10 タグ（シリーズを分類するキーワードを追加）
-              </Typography>
-              
-              {/* タグ表示エリア */}
-              <Box sx={{ 
-                display: 'flex', 
-                flexWrap: 'wrap', 
-                gap: 1, 
-                minHeight: '40px'
-              }}>
-                {tags.map((tag, index) => (
-                  <Chip
-                    key={`${tag}-${index}`}
-                    label={tag}
-                    onDelete={() => handleRemoveTag(tag)}
-                    color="primary"
-                    variant="outlined"
-                    size="small"
-                  />
-                ))}
-              </Box>
+              <TextField
+                label="タグを追加"
+                variant="outlined"
+                fullWidth
+                value={newTag}
+                onChange={handleTagChange}
+                onKeyPress={handleKeyPress}
+                helperText={`タグを入力してEnterキーで追加（${tags.length}/10）`}
+                InputProps={{
+                  endAdornment: (
+                    <IconButton 
+                      onClick={handleAddTag}
+                      disabled={!newTag || tags.length >= 10 || tags.includes(newTag)}
+                      size="small"
+                    >
+                      <AddIcon />
+                    </IconButton>
+                  )
+                }}
+              />
+              {tags.length > 0 && (
+                <Box mt={1} display="flex" flexWrap="wrap" gap={1}>
+                  {tags.map((tag, index) => (
+                    <Chip
+                      key={index}
+                      label={tag}
+                      onDelete={() => handleRemoveTag(tag)}
+                      size="small"
+                      variant="outlined"
+                    />
+                  ))}
+                </Box>
+              )}
             </Box>
             
-            {/* オリジナル設定 */}
+            {/* オリジナル作品設定 */}
             <Box mb={3}>
               <FormControl component="fieldset">
                 <FormLabel component="legend">オリジナル作品ですか？</FormLabel>
@@ -273,7 +256,7 @@ const SeriesCreationModal = memo(({ open, onClose, onCreateSeries }) => {
             </Box>
             
             {/* 年齢制限設定 */}
-            <Box mb={4}>
+            <Box mb={3}>
               <FormControl component="fieldset">
                 <FormLabel component="legend">対象年齢</FormLabel>
                 <RadioGroup
@@ -283,6 +266,21 @@ const SeriesCreationModal = memo(({ open, onClose, onCreateSeries }) => {
                 >
                   <FormControlLabel value="all" control={<Radio />} label="全年齢" />
                   <FormControlLabel value="adult" control={<Radio />} label="R18" />
+                </RadioGroup>
+              </FormControl>
+            </Box>
+            
+            {/* 🆕 公開設定 */}
+            <Box mb={4}>
+              <FormControl component="fieldset">
+                <FormLabel component="legend">公開設定</FormLabel>
+                <RadioGroup
+                  value={publicityStatus}
+                  onChange={handlePublicityStatusChange}
+                >
+                  <FormControlLabel value="public" control={<Radio />} label="公開" />
+                  <FormControlLabel value="limited" control={<Radio />} label="限定公開" />
+                  <FormControlLabel value="private" control={<Radio />} label="非公開" />
                 </RadioGroup>
               </FormControl>
             </Box>

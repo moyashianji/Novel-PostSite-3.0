@@ -22,6 +22,10 @@ import {
   FormHelperText,
   FormGroup,
   Switch,
+  Radio,
+  RadioGroup,
+  FormControl,
+  FormLabel as MuiFormLabel,
   useTheme
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
@@ -35,7 +39,11 @@ import {
   Copyright as CopyrightIcon,
   Warning as WarningIcon,
   SmartToy as SmartToyIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+  Link as LinkIcon,
+  Public as PublicIcon
 } from '@mui/icons-material';
 
 // Styled components
@@ -55,7 +63,7 @@ const FormSection = styled(Box)(({ theme }) => ({
   marginBottom: theme.spacing(3),
 }));
 
-const FormLabel = styled(Typography)(({ theme }) => ({
+const CustomFormLabel = styled(Typography)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   marginBottom: theme.spacing(1),
@@ -92,6 +100,14 @@ const SwitchGroup = styled(FormGroup)(({ theme }) => ({
   marginBottom: theme.spacing(2),
 }));
 
+const PublicitySection = styled(Box)(({ theme }) => ({
+  backgroundColor: theme.palette.background.paper,
+  borderRadius: theme.spacing(1),
+  padding: theme.spacing(2),
+  marginBottom: theme.spacing(2),
+  border: `1px solid ${theme.palette.divider}`,
+}));
+
 const SeriesEditSidebar = ({ series, setSeries }) => {
   const theme = useTheme();
   const [title, setTitle] = useState('');
@@ -101,6 +117,7 @@ const SeriesEditSidebar = ({ series, setSeries }) => {
   const [isOriginal, setIsOriginal] = useState(false);
   const [isAdultContent, setIsAdultContent] = useState(false);
   const [aiGenerated, setAiGenerated] = useState(false);
+  const [publicityStatus, setPublicityStatus] = useState('public'); // 🆕 公開設定を追加
   
   const [titleError, setTitleError] = useState('');
   const [descriptionError, setDescriptionError] = useState('');
@@ -108,8 +125,7 @@ const SeriesEditSidebar = ({ series, setSeries }) => {
   
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState({ open: false, message: '', type: 'success' });
-  const [isCompleted, setIsCompleted] = useState(false); // 新しいstate追加
-
+  const [isCompleted, setIsCompleted] = useState(false);
 
   
   // サイドバーが開かれたときや、シリーズが更新されたときに状態を更新する
@@ -121,7 +137,8 @@ const SeriesEditSidebar = ({ series, setSeries }) => {
       setIsOriginal(series.isOriginal || false);
       setIsAdultContent(series.isAdultContent || false);
       setAiGenerated(series.aiGenerated || false);
-      setIsCompleted(series.isCompleted || false); // 完結状態も読み込む
+      setIsCompleted(series.isCompleted || false);
+      setPublicityStatus(series.publicityStatus || 'public'); // 🆕 公開設定を読み込み
 
       // Reset errors
       setTitleError('');
@@ -173,6 +190,45 @@ const SeriesEditSidebar = ({ series, setSeries }) => {
     setTags(tags.filter(tag => tag !== tagToRemove));
   };
 
+  // 🆕 公開設定変更ハンドラ
+  const handlePublicityStatusChange = (e) => {
+    setPublicityStatus(e.target.value);
+  };
+
+  // 🆕 公開設定の表示情報を取得
+  const getPublicityStatusInfo = (status) => {
+    switch (status) {
+      case 'public':
+        return {
+          label: '公開',
+          description: '誰でも閲覧・検索できます',
+          icon: <PublicIcon fontSize="small" />,
+          color: 'success.main'
+        };
+      case 'limited':
+        return {
+          label: '限定公開',
+          description: 'URLを知っている人のみ閲覧できます',
+          icon: <LinkIcon fontSize="small" />,
+          color: 'warning.main'
+        };
+      case 'private':
+        return {
+          label: '非公開',
+          description: '自分のみ閲覧できます',
+          icon: <VisibilityOffIcon fontSize="small" />,
+          color: 'error.main'
+        };
+      default:
+        return {
+          label: '公開',
+          description: '誰でも閲覧・検索できます',
+          icon: <PublicIcon fontSize="small" />,
+          color: 'success.main'
+        };
+    }
+  };
+
   const validate = () => {
     let isValid = true;
     
@@ -205,8 +261,8 @@ const SeriesEditSidebar = ({ series, setSeries }) => {
       isOriginal,
       isAdultContent,
       aiGenerated,
-      isCompleted, // 完結状態も送信データに追加
-
+      isCompleted,
+      publicityStatus, // 🆕 公開設定を送信データに追加
     };
 
     try {
@@ -214,10 +270,8 @@ const SeriesEditSidebar = ({ series, setSeries }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-
         },
-        credentials: 'include',  // 認証情報を含めてリクエスト
-
+        credentials: 'include',
         body: JSON.stringify(updatedSeries),
       });
 
@@ -236,6 +290,8 @@ const SeriesEditSidebar = ({ series, setSeries }) => {
         setIsOriginal(updatedData.isOriginal);
         setIsAdultContent(updatedData.isAdultContent);
         setAiGenerated(updatedData.aiGenerated);
+        setIsCompleted(updatedData.isCompleted);
+        setPublicityStatus(updatedData.publicityStatus || 'public'); // 🆕 公開設定を更新
         
         // 成功メッセージを表示
         setFeedback({
@@ -286,10 +342,10 @@ const SeriesEditSidebar = ({ series, setSeries }) => {
       
       <CardContent sx={{ flexGrow: 1, p: 3 }}>
         <FormSection>
-          <FormLabel>
+          <CustomFormLabel>
             <FormIcon><TitleIcon fontSize="small" /></FormIcon>
             タイトル
-          </FormLabel>
+          </CustomFormLabel>
           <TextField
             fullWidth
             value={title}
@@ -306,10 +362,10 @@ const SeriesEditSidebar = ({ series, setSeries }) => {
         </FormSection>
         
         <FormSection>
-          <FormLabel>
+          <CustomFormLabel>
             <FormIcon><DescriptionIcon fontSize="small" /></FormIcon>
             あらすじ
-          </FormLabel>
+          </CustomFormLabel>
           <TextField
             fullWidth
             value={description}
@@ -328,10 +384,10 @@ const SeriesEditSidebar = ({ series, setSeries }) => {
         </FormSection>
         
         <FormSection>
-          <FormLabel>
+          <CustomFormLabel>
             <FormIcon><LocalOfferIcon fontSize="small" /></FormIcon>
             タグ
-          </FormLabel>
+          </CustomFormLabel>
           
           <TagInput>
             <TextField
@@ -401,6 +457,70 @@ const SeriesEditSidebar = ({ series, setSeries }) => {
             ))}
           </TagsContainer>
         </FormSection>
+
+        {/* 🆕 公開設定セクションを追加 */}
+        <FormSection>
+          <CustomFormLabel>
+            <FormIcon><VisibilityIcon fontSize="small" /></FormIcon>
+            公開設定
+          </CustomFormLabel>
+          
+          <PublicitySection>
+            <FormControl component="fieldset" fullWidth>
+              <RadioGroup
+                value={publicityStatus}
+                onChange={handlePublicityStatusChange}
+              >
+                {['public', 'limited', 'private'].map((status) => {
+                  const statusInfo = getPublicityStatusInfo(status);
+                  return (
+                    <FormControlLabel
+                      key={status}
+                      value={status}
+                      control={<Radio size="small" />}
+                      label={
+                        <Box sx={{ display: 'flex', alignItems: 'center', py: 0.5 }}>
+                          <Box 
+                            sx={{ 
+                              mr: 1, 
+                              color: statusInfo.color,
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                          >
+                            {statusInfo.icon}
+                          </Box>
+                          <Box>
+                            <Typography variant="body2" fontWeight="medium">
+                              {statusInfo.label}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {statusInfo.description}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      }
+                      sx={{ 
+                        mx: 0,
+                        mb: 1,
+                        '&:last-child': { mb: 0 },
+                        borderRadius: 1,
+                        px: 1,
+                        py: 0.5,
+                        '&:hover': {
+                          backgroundColor: 'action.hover',
+                        },
+                        ...(publicityStatus === status && {
+                          backgroundColor: 'action.selected',
+                        }),
+                      }}
+                    />
+                  );
+                })}
+              </RadioGroup>
+            </FormControl>
+          </PublicitySection>
+        </FormSection>
         
         <Divider sx={{ my: 2 }} />
         
@@ -437,7 +557,8 @@ const SeriesEditSidebar = ({ series, setSeries }) => {
                 </Box>
               }
             />
-                        {/* 完結済みスイッチを追加 */}
+            
+            {/* 完結済みスイッチ */}
             <FormControlLabel
               control={
                 <Switch 
@@ -456,7 +577,6 @@ const SeriesEditSidebar = ({ series, setSeries }) => {
                 </Box>
               }
             />
-
           </Stack>
         </SwitchGroup>
         

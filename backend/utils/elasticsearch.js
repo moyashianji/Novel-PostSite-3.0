@@ -292,10 +292,104 @@ async function initializeContestTagsInMongoDB() {
     }
   }
 
-  module.exports = { 
+// 🆕 シリーズの公開設定をElasticsearchに追加する関数
+async function addPublicityStatusToExistingSeriesDocuments() {
+    try {
+      console.log('🔍 既存のElasticsearchシリーズドキュメントにpublicityStatusフィールドを追加中...');
+  
+      // MongoDBから全シリーズのIDとpublicityStatus情報を取得
+      const series = await Series.find({}, { _id: 1, publicityStatus: 1 });
+  
+      console.log(`📝 MongoDB から取得したシリーズデータ (${series.length} 件)`);
+  
+      if (!series || series.length === 0) {
+        console.log('✅ 更新するシリーズデータがありません。');
+        return;
+      }
+  
+      // Elasticsearch に既存のドキュメントを部分更新 (Bulk API)
+      const body = series.flatMap((seriesItem) => [
+        { 
+          update: { 
+            _index: 'series', 
+            _id: seriesItem._id.toString(),
+            retry_on_conflict: 3 // 競合時のリトライ回数
+          } 
+        },
+        {
+          doc: {
+            publicityStatus: seriesItem.publicityStatus || 'public' // ✅ シリーズ公開設定情報のみを追加/更新
+          },
+          doc_as_upsert: false // 既存ドキュメントのみ更新
+        }
+      ]);
+  
+      if (body.length === 0) {
+        console.log('✅ 更新するシリーズデータがありません。スキップします。');
+        return;
+      }
+  
+      console.log(`📤 ${series.length} 件のシリーズドキュメントにpublicityStatusフィールドを追加中...`);
+
+      const bulkResponse = await esClient.bulk({ refresh: "wait_for", body });
+      
+      console.log('🔍 シリーズ bulkResponse:', JSON.stringify(bulkResponse, null, 2));
+      
+      if (!bulkResponse || !bulkResponse.items) {
+        console.error('❌ Elasticsearch シリーズへの部分更新失敗: bulkResponse が不正');
+        return;
+      }
+      
+      if (bulkResponse.errors) {
+        const errorItems = bulkResponse.items.filter(item => item.update && item.update.error);
+        console.error('❌ Elasticsearch シリーズへの一部更新に失敗:', JSON.stringify(errorItems, null, 2));
+        
+        // 成功した件数も表示
+        const successCount = bulkResponse.items.length - errorItems.length;
+        console.log(`✅ ${successCount} 件のシリーズドキュメントにpublicityStatusフィールドを追加しました。`);
+      } else {
+        console.log(`✅ ${bulkResponse.items.length} 件のシリーズドキュメントにpublicityStatusフィールドを追加しました。`);
+      }
+    } catch (error) {
+      console.error('❌ Elasticsearch シリーズへの部分更新エラー:', error);
+    }
+  }
+
+// 🆕 MongoDBの既存シリーズにpublicityStatusフィールドを初期化する関数
+async function initializePublicityStatusInSeriesMongoDB() {
+    try {
+      console.log('🔍 MongoDBの既存シリーズにpublicityStatusフィールドを初期化中...');
+  
+      // publicityStatusフィールドが存在しない、またはundefinedのシリーズを検索
+      const result = await Series.updateMany(
+        { 
+          $or: [
+            { publicityStatus: { $exists: false } },
+            { publicityStatus: null },
+            { publicityStatus: undefined }
+          ]
+        },
+        { 
+          $set: { publicityStatus: 'public' } // デフォルトで公開に設定
+        }
+      );
+  
+      console.log(`✅ ${result.modifiedCount} 件のシリーズにpublicityStatusフィールドを初期化しました`);
+      console.log(`📊 マッチしたシリーズ数: ${result.matchedCount}`);
+      
+      return result;
+    } catch (error) {
+      console.error('❌ MongoDB シリーズ publicityStatus初期化エラー:', error);
+      throw error;
+    }
+  }
+
+module.exports = { 
     migrateDataToElasticsearch,
     addIsAdultContentToExistingDocuments,
     addPublicityStatusToExistingDocuments,
-    addContestTagsToExistingDocuments, // 🆕 追加
-    initializeContestTagsInMongoDB // 🆕 追加
+    addContestTagsToExistingDocuments,
+    initializeContestTagsInMongoDB,
+    addPublicityStatusToExistingSeriesDocuments, // 🆕 シリーズ公開設定追加
+    initializePublicityStatusInSeriesMongoDB // 🆕 シリーズMongoDB初期化追加
   };

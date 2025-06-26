@@ -32,6 +32,12 @@ const seriesSchema = new mongoose.Schema({
     type: Boolean,
     required: true,
   },
+  // 🆕 公開設定フィールドを追加
+  publicityStatus: {
+    type: String,
+    enum: ['public', 'limited', 'private'],
+    default: 'public'
+  },
   author: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -111,34 +117,161 @@ seriesSchema.methods.calculateTrendingScore = function() {
   
   return this.trendingScores;
 };
-// Series.js の Elasticsearch インデックス処理の部分
+// 🆕 シリーズ保存後のElasticsearch自動更新フック（Postモデルと同じ仕組み）
 seriesSchema.post('save', async function (doc) {
+  try {
+    if (!esClient) {
+      console.warn('⚠ Elasticsearch client is undefined - スキップ');
+      return;
+    }
+
+    console.log(`🔄 ES自動同期開始: ${doc._id}`);
+
+    // まず既存のドキュメントが存在するかチェック
+    let existingDoc = null;
+    try {
+      const getResponse = await esClient.get({
+        index: 'series',
+        id: doc._id.toString(),
+      });
+      existingDoc = getResponse._source;
+    } catch (getError) {
+      // ドキュメントが存在しない場合は null のまま
+      if (getError.statusCode !== 404) {
+        throw getError;
+      }
+    }
+
+    if (existingDoc) {
+      // 既存のドキュメントがある場合は部分更新
+      const updateBody = {};
+
+      // 各フィールドの変更をチェック
+      if (doc.isAdultContent !== existingDoc.isAdultContent) {
+        updateBody.isAdultContent = doc.isAdultContent || false;
+      }
+
+      if (doc.publicityStatus !== existingDoc.publicityStatus) {
+        updateBody.publicityStatus = doc.publicityStatus || 'public';
+      }
+
+      if (doc.title !== existingDoc.title) {
+        updateBody.title = doc.title;
+      }
+
+      if (doc.description !== existingDoc.description) {
+        updateBody.description = sanitizeHtml(doc.description, {
+          allowedTags: [],
+          allowedAttributes: {}
+        });
+      }
+
+      if (JSON.stringify(doc.tags || []) !== JSON.stringify(existingDoc.tags || [])) {
+        updateBody.tags = doc.tags || [];
+      }
+
+      // 変更があった場合のみ更新
+      if (Object.keys(updateBody).length > 0) {
+        console.log(`🔄 ES部分更新: ${doc._id} | 更新フィールド:`, Object.keys(updateBody));
+
+        await esClient.update({
+          index: 'series',
+          id: doc._id.toString(),
+          body: {
+            doc: updateBody
+          }
+        });
+
+        console.log(`✅ ES部分更新完了: ${doc._id}`);
+      } else {
+        console.log(`ℹ️ ES更新スキップ: ${doc._id} - 変更なし`);
+      }
+    } else {
+      // 新規ドキュメントの場合は全体を送信
+      if (!doc.title || !doc.description) {
+        console.warn(`⚠ ES新規登録スキップ: ${doc._id} - title または description が不足`);
+        return;
+      }
+
+      const cleanDescription = sanitizeHtml(doc.description, {
+        allowedTags: [],
+        allowedAttributes: {}
+      });
+
+      const newDocBody = {
+        title: doc.title,
+        description: cleanDescription,
+        tags: doc.tags || [],
+        isAdultContent: doc.isAdultContent || false,
+        publicityStatus: doc.publicityStatus || 'public',
+        createdAt: doc.createdAt
+      };
+
+      console.log(`➕ ES新規登録: ${doc._id}`);
+
+      await esClient.index({
+        index: 'series',
+        id: doc._id.toString(),
+        body: newDocBody
+      });
+
+      console.log(`✅ ES新規登録完了: ${doc._id}`);
+    }
+
+  } catch (error) {
+    console.error(`❌ ES自動同期エラー (${doc._id}):`, error.message);
+    
+    // 🔧 エラーの詳細情報を記録
+    if (error.meta) {
+      console.error('❌ ES エラー詳細:', JSON.stringify(error.meta.body || error.meta, null, 2));
+    }
+  }
+});
+
+// 🆕 シリーズ削除後のElasticsearch自動削除フック
+seriesSchema.post('deleteOne', { document: true, query: false }, async function (doc) {
   try {
     if (!esClient) throw new Error('❌ Elasticsearch client is undefined');
 
-    // Elasticsearch に保存するデータを準備
-    const esBody = {
-      title: doc.title,
-      description: doc.description,
-      tags: doc.tags || [],
-      author: doc.author.toString(),
-      createdAt: doc.createdAt,
-      isAdultContent: doc.isAdultContent || false,
-      isCompleted: doc.isCompleted || false, // 完結状態を追加
-    };
+    console.log(`🗑️ ES シリーズ削除: ${doc._id}`);
 
-    // Elasticsearch に保存
-    const response = await esClient.index({
+    await esClient.delete({
       index: 'series',
       id: doc._id.toString(),
-      body: esBody,
     });
 
-    console.log('✅ Series indexed in Elasticsearch:', response);
+    console.log(`✅ ES シリーズ削除完了: ${doc._id}`);
   } catch (error) {
-    console.error('❌ Error indexing series in Elasticsearch:', error);
+    if (error.statusCode === 404) {
+      console.log(`⚠ ES シリーズ削除: ${doc._id} - ドキュメントは既に存在しません`);
+    } else {
+      console.error(`❌ ES シリーズ削除エラー (${doc._id}):`, error.message);
+    }
   }
 });
-const Series = mongoose.model('Series', seriesSchema);
 
-module.exports = Series;
+// 🆕 findOneAndDelete対応
+seriesSchema.post('findOneAndDelete', async function (doc) {
+  if (!doc) return;
+  
+  try {
+    if (!esClient) throw new Error('❌ Elasticsearch client is undefined');
+
+    console.log(`🗑️ ES シリーズ削除 (findOneAndDelete): ${doc._id}`);
+
+    await esClient.delete({
+      index: 'series',
+      id: doc._id.toString(),
+    });
+
+    console.log(`✅ ES シリーズ削除完了 (findOneAndDelete): ${doc._id}`);
+  } catch (error) {
+    if (error.statusCode === 404) {
+      console.log(`⚠ ES シリーズ削除 (findOneAndDelete): ${doc._id} - ドキュメントは既に存在しません`);
+    } else {
+      console.error(`❌ ES シリーズ削除エラー (findOneAndDelete) (${doc._id}):`, error.message);
+    }
+  }
+});
+
+module.exports = mongoose.model('Series', seriesSchema);
