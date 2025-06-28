@@ -53,7 +53,15 @@ const userSchema = new mongoose.Schema({
       index: { type: Number, required: true }  // インデックスを明示的に保持
 
     }
-  ]
+  ],
+
+  // テーマ設定を追加（最小限）
+  themeSettings: {
+    mode: { type: String, enum: ['light', 'dark'], default: 'light' },
+    preset: { type: String, enum: ['classic', 'warm', 'forest', 'midnight', 'sakura'], default: 'classic' },
+    fontSize: { type: Number, min: 12, max: 24, default: 16 }
+  }
+  
 }, {
   toJSON: {
     transform: function (doc, ret) {

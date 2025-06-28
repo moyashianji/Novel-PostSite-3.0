@@ -1,5 +1,5 @@
 // src/components/user/ProfileHeader.js
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Typography, Box, Button, Avatar, Tooltip, useTheme, useMediaQuery
 } from '@mui/material';
@@ -11,6 +11,7 @@ import LaunchIcon from '@mui/icons-material/Launch';
 import BrushIcon from '@mui/icons-material/Brush';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import LinkIcon from '@mui/icons-material/Link';
+import ExternalLinkConfirmation from '../common/ExternalLinkConfirmation';
 
 // Styled components
 const ProfileHeaderContainer = styled('div')(({ theme }) => ({
@@ -116,149 +117,167 @@ const ProfileHeader = ({
   followerCount, 
   isFollowing, 
   onFollowToggle, 
-  onLinkClick, 
   onAuthorTagClick 
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
+  // 外部リンク確認ダイアログの状態
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, url: '' });
+  
   // 外部リンクの存在チェック
   const hasLinks = user && (user.xLink || user.pixivLink || user.otherLink);
 
+  // 外部リンククリック時の処理
+  const handleLinkClick = (url) => {
+    if (url) {
+      setConfirmDialog({ open: true, url });
+    }
+  };
+
   return (
-    <ProfileHeaderContainer>
-      <BackgroundPattern />
-      <Box sx={{ position: 'relative', zIndex: 1 }}>
-        <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'center' : 'flex-start' }}>
-          <ProfileAvatar src={`${user.icon}`} alt={user.nickname} />
-          
-          <Box sx={{ flex: 1, mb: isMobile ? 2 : 0, textAlign: isMobile ? 'center' : 'left' }}>
-            <Typography variant="h4" sx={{ fontWeight: 800, mb: 1 }}>
-              {user.nickname}
-            </Typography>
+    <>
+      <ProfileHeaderContainer>
+        <BackgroundPattern />
+        <Box sx={{ position: 'relative', zIndex: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'center' : 'flex-start' }}>
+            <ProfileAvatar src={`${user.icon}`} alt={user.nickname} />
             
-            <Typography variant="body1" color="text.secondary" sx={{ mb: 2, maxWidth: 600 }}>
-              {user.description || "このユーザーは自己紹介を設定していません。"}
-            </Typography>
+            <Box sx={{ flex: 1, mb: isMobile ? 2 : 0, textAlign: isMobile ? 'center' : 'left' }}>
+              <Typography variant="h4" sx={{ fontWeight: 800, mb: 1 }}>
+                {user.nickname}
+              </Typography>
+              
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 2, maxWidth: 600 }}>
+                {user.description || "このユーザーは自己紹介を設定していません。"}
+              </Typography>
 
-            {/* 好きな作家タグ */}
-            {user.favoriteAuthors && user.favoriteAuthors.length > 0 && (
-              <FavoriteAuthorsContainer>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <FavoriteIcon sx={{ fontSize: 18, color: 'secondary.main', mr: 0.5 }} />
-                  <Typography variant="body2" color="text.secondary" fontWeight="medium">
-                    好きな作家
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', maxHeight: 70, overflow: 'hidden' }}>
-                  {user.favoriteAuthors.slice(0, 12).map((author, index) => (
-                    <AuthorChip
-                      key={index}
-                      onClick={() => onAuthorTagClick(author)}
-                    >
-                      {author}
-                    </AuthorChip>
-                  ))}
-                  {user.favoriteAuthors.length > 12 && (
-                    <AuthorChip style={{ 
-                      backgroundColor: 'transparent',
-                      border: `1px solid ${alpha(theme.palette.secondary.main, 0.4)}`
-                    }}>
-                      +{user.favoriteAuthors.length - 12}人
-                    </AuthorChip>
-                  )}
-                </Box>
-              </FavoriteAuthorsContainer>
-            )}
+              {/* 好きな作家タグ */}
+              {user.favoriteAuthors && user.favoriteAuthors.length > 0 && (
+                <FavoriteAuthorsContainer>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <FavoriteIcon sx={{ fontSize: 18, color: 'secondary.main', mr: 0.5 }} />
+                    <Typography variant="body2" color="text.secondary" fontWeight="medium">
+                      好きな作家
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', maxHeight: 70, overflow: 'hidden' }}>
+                    {user.favoriteAuthors.slice(0, 12).map((author, index) => (
+                      <AuthorChip
+                        key={index}
+                        onClick={() => onAuthorTagClick(author)}
+                      >
+                        {author}
+                      </AuthorChip>
+                    ))}
+                    {user.favoriteAuthors.length > 12 && (
+                      <AuthorChip style={{ 
+                        backgroundColor: 'transparent',
+                        border: `1px solid ${alpha(theme.palette.secondary.main, 0.4)}`
+                      }}>
+                        +{user.favoriteAuthors.length - 12}人
+                      </AuthorChip>
+                    )}
+                  </Box>
+                </FavoriteAuthorsContainer>
+              )}
 
-            {/* 外部リンク */}
-            {hasLinks && (
-              <LinksContainer>
-                <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
-                  <LinkIcon sx={{ fontSize: 18, color: 'primary.main', mr: 0.5 }} />
-                  <Typography variant="body2" color="text.secondary" fontWeight="medium">
-                    リンク
+              {/* 外部リンク */}
+              {hasLinks && (
+                <LinksContainer>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+                    <LinkIcon sx={{ fontSize: 18, color: 'primary.main', mr: 0.5 }} />
+                    <Typography variant="body2" color="text.secondary" fontWeight="medium">
+                      リンク
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {user.xLink && (
+                      <Tooltip title="X (Twitter)">
+                        <LinkButton onClick={() => handleLinkClick(user.xLink)}>
+                          <TwitterIcon style={{ fontSize: 20 }} />
+                        </LinkButton>
+                      </Tooltip>
+                    )}
+                    {user.pixivLink && (
+                      <Tooltip title="Pixiv">
+                        <LinkButton onClick={() => handleLinkClick(user.pixivLink)}>
+                          <BrushIcon style={{ fontSize: 20 }} />
+                        </LinkButton>
+                      </Tooltip>
+                    )}
+                    {user.otherLink && (
+                      <Tooltip title="その他のリンク">
+                        <LinkButton onClick={() => handleLinkClick(user.otherLink)}>
+                          <LaunchIcon style={{ fontSize: 20 }} />
+                        </LinkButton>
+                      </Tooltip>
+                    )}
+                  </Box>
+                </LinksContainer>
+              )}
+              
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 3, justifyContent: isMobile ? 'center' : 'flex-start' }}>
+                <StatsBox>
+                  <Typography variant="h6" color="primary.main" fontWeight="bold">
+                    {workStats.total}
                   </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {user.xLink && (
-                    <Tooltip title="X (Twitter)">
-                      <LinkButton onClick={() => onLinkClick(user.xLink)}>
-                        <TwitterIcon style={{ fontSize: 20 }} />
-                      </LinkButton>
-                    </Tooltip>
-                  )}
-                  {user.pixivLink && (
-                    <Tooltip title="Pixiv">
-                      <LinkButton onClick={() => onLinkClick(user.pixivLink)}>
-                        <BrushIcon style={{ fontSize: 20 }} />
-                      </LinkButton>
-                    </Tooltip>
-                  )}
-                  {user.otherLink && (
-                    <Tooltip title="その他のリンク">
-                      <LinkButton onClick={() => onLinkClick(user.otherLink)}>
-                        <LaunchIcon style={{ fontSize: 20 }} />
-                      </LinkButton>
-                    </Tooltip>
-                  )}
-                </Box>
-              </LinksContainer>
-            )}
+                  <Typography variant="caption" color="text.secondary">
+                    作品
+                  </Typography>
+                </StatsBox>
+                
+                <StatsBox>
+                  <Typography variant="h6" color="primary.main" fontWeight="bold">
+                    {workStats.series}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    シリーズ
+                  </Typography>
+                </StatsBox>
+                
+                <StatsBox>
+                  <Typography variant="h6" color="primary.main" fontWeight="bold">
+                    {followerCount}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    フォロワー
+                  </Typography>
+                </StatsBox>
+                
+                <StatsBox>
+                  <Typography variant="h6" color="primary.main" fontWeight="bold">
+                    {workStats.totalViews.toLocaleString()}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    総閲覧数
+                  </Typography>
+                </StatsBox>
+              </Box>
+            </Box>
             
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 3, justifyContent: isMobile ? 'center' : 'flex-start' }}>
-              <StatsBox>
-                <Typography variant="h6" color="primary.main" fontWeight="bold">
-                  {workStats.total}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  作品
-                </Typography>
-              </StatsBox>
-              
-              <StatsBox>
-                <Typography variant="h6" color="primary.main" fontWeight="bold">
-                  {workStats.series}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  シリーズ
-                </Typography>
-              </StatsBox>
-              
-              <StatsBox>
-                <Typography variant="h6" color="primary.main" fontWeight="bold">
-                  {followerCount}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  フォロワー
-                </Typography>
-              </StatsBox>
-              
-              <StatsBox>
-                <Typography variant="h6" color="primary.main" fontWeight="bold">
-                  {workStats.totalViews.toLocaleString()}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  総閲覧数
-                </Typography>
-              </StatsBox>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, ml: isMobile ? 0 : 2 }}>
+              <Button
+                variant={isFollowing ? 'contained' : 'outlined'}
+                color="primary"
+                onClick={onFollowToggle}
+                startIcon={isFollowing ? <PersonRemoveIcon /> : <PersonAddIcon />}
+                sx={{ borderRadius: 8, minWidth: 150, py: 1 }}
+              >
+                {isFollowing ? 'フォロー中' : 'フォローする'}
+              </Button>
             </Box>
           </Box>
-          
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, ml: isMobile ? 0 : 2 }}>
-            <Button
-              variant={isFollowing ? 'contained' : 'outlined'}
-              color="primary"
-              onClick={onFollowToggle}
-              startIcon={isFollowing ? <PersonRemoveIcon /> : <PersonAddIcon />}
-              sx={{ borderRadius: 8, minWidth: 150, py: 1 }}
-            >
-              {isFollowing ? 'フォロー中' : 'フォローする'}
-            </Button>
-          </Box>
         </Box>
-      </Box>
-    </ProfileHeaderContainer>
+      </ProfileHeaderContainer>
+
+      {/* 外部リンク確認ダイアログ */}
+      <ExternalLinkConfirmation
+        open={confirmDialog.open}
+        handleClose={() => setConfirmDialog({ ...confirmDialog, open: false })}
+        url={confirmDialog.url}
+      />
+    </>
   );
 };
 

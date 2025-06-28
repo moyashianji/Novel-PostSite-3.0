@@ -13,6 +13,110 @@ const ViewAnalytics = require('../models/ViewAnalytics'); // ViewAnalytics
 const upload = require('../middlewares/upload');
 
 const router = express.Router();
+// テーマ設定取得
+router.get('/theme-settings', authenticateToken, async (req, res) => {
+  console.log(req.user._id)
+  try {
+    const user = await User.findById(req.user._id)
+      .select('themeSettings')
+      .lean();
+    
+    if (!user) {
+      return res.status(404).json({ message: 'ユーザーが見つかりません' });
+    }
+
+    const themeSettings = user.themeSettings || { 
+      mode: 'light', 
+      preset: 'classic', 
+      fontSize: 16 
+    };
+
+    res.json(themeSettings);
+  } catch (error) {
+    console.error('Error fetching theme settings:', error);
+    res.status(500).json({ message: 'サーバーエラー' });
+  }
+});
+// テーマ設定更新
+router.put('/theme-settings', authenticateToken, async (req, res) => {
+  try {
+    const { mode, preset, fontSize } = req.body;
+    
+    // バリデーション
+    const validModes = ['light', 'dark'];
+    const validPresets = ['classic', 'warm', 'forest', 'midnight', 'sakura'];
+    
+    if (mode && !validModes.includes(mode)) {
+      return res.status(400).json({ message: '無効なモードです' });
+    }
+    
+    if (preset && !validPresets.includes(preset)) {
+      return res.status(400).json({ message: '無効なプリセットです' });
+    }
+    
+    if (fontSize && (fontSize < 12 || fontSize > 24)) {
+      return res.status(400).json({ message: 'フォントサイズは12-24の範囲で設定してください' });
+    }
+
+    // ユーザーを更新
+    const result = await User.findByIdAndUpdate(
+      req.user._id,
+      { 
+        $set: { 
+          themeSettings: {
+            mode: mode || 'light',
+            preset: preset || 'classic',
+            fontSize: fontSize || 16
+          }
+        }
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!result) {
+      return res.status(404).json({ message: 'ユーザーが見つかりません' });
+    }
+
+    res.json({ 
+      message: 'テーマ設定を更新しました',
+      themeSettings: result.themeSettings
+    });
+  } catch (error) {
+    console.error('Error updating theme settings:', error);
+    res.status(500).json({ message: 'サーバーエラー' });
+  }
+});
+
+// テーマ設定リセット
+router.delete('/theme-settings', authenticateToken, async (req, res) => {
+  try {
+    const result = await User.findByIdAndUpdate(
+      req.user._id,
+      { 
+        $set: { 
+          themeSettings: {
+            mode: 'light',
+            preset: 'classic',
+            fontSize: 16
+          }
+        }
+      },
+      { new: true }
+    );
+
+    if (!result) {
+      return res.status(404).json({ message: 'ユーザーが見つかりません' });
+    }
+
+    res.json({ 
+      message: 'テーマ設定をリセットしました',
+      themeSettings: result.themeSettings
+    });
+  } catch (error) {
+    console.error('Error resetting theme settings:', error);
+    res.status(500).json({ message: 'サーバーエラー' });
+  }
+});
 
 // ユーザー情報を取得するエンドポイント
 router.get('/:userId([0-9a-fA-F]{24})', async (req, res) => {

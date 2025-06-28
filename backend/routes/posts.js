@@ -21,11 +21,13 @@ const esClient = getEsClient();
 
 
 
-// 一括更新エンドポイント
+// 🆕 作品一括更新エンドポイント（ES同期対応）
 router.post('/bulk-update', authenticateToken, async (req, res) => {
   try {
     const { postIds, action } = req.body;
     const userId = req.user._id;
+
+    console.log('🔄 作品一括更新開始:', { postIds, action });
 
     if (!postIds || !Array.isArray(postIds) || postIds.length === 0) {
       return res.status(400).json({ message: '更新する作品を選択してください' });
@@ -56,10 +58,59 @@ router.post('/bulk-update', authenticateToken, async (req, res) => {
         return res.status(400).json({ message: '無効な操作です' });
     }
 
+    const postIdsToUpdate = posts.map(p => p._id);
+
+    // MongoDB一括更新実行
     const result = await Post.updateMany(
-      { _id: { $in: posts.map(p => p._id) } },
+      { _id: { $in: postIdsToUpdate } },
       { $set: updateData }
     );
+
+    console.log(`📝 MongoDB更新完了: ${result.modifiedCount}件`);
+
+    // 🆕 Elasticsearch同期処理
+    try {
+      if (esClient && result.modifiedCount > 0) {
+        console.log('🔄 Elasticsearch同期開始...');
+        
+        // Elasticsearch一括更新のためのBulk APIボディを作成
+        const esBulkBody = postIdsToUpdate.flatMap((postId) => [
+          { 
+            update: { 
+              _index: 'posts', 
+              _id: postId.toString(),
+              retry_on_conflict: 3
+            } 
+          },
+          {
+            doc: updateData,
+            doc_as_upsert: false // 既存ドキュメントのみ更新
+          }
+        ]);
+
+        if (esBulkBody.length > 0) {
+          const esBulkResponse = await esClient.bulk({ 
+            refresh: "wait_for", 
+            body: esBulkBody 
+          });
+
+          if (esBulkResponse.errors) {
+            const errorItems = esBulkResponse.items.filter(item => item.update && item.update.error);
+            console.error('❌ ES一括更新で一部エラー:', JSON.stringify(errorItems, null, 2));
+            
+            const successCount = esBulkResponse.items.length - errorItems.length;
+            console.log(`✅ ES更新成功: ${successCount}件, エラー: ${errorItems.length}件`);
+          } else {
+            console.log(`✅ ES一括更新完了: ${esBulkResponse.items.length}件`);
+          }
+        }
+      } else {
+        console.log('⚠️ ESクライアントが利用できないか、更新対象がありません');
+      }
+    } catch (esError) {
+      console.error('❌ Elasticsearch同期エラー:', esError.message);
+      // ESエラーは非致命的として処理継続
+    }
 
     res.json({ 
       message: `${result.modifiedCount}件の作品を更新しました`,
@@ -67,7 +118,7 @@ router.post('/bulk-update', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('一括更新エラー:', error);
+    console.error('❌ 作品一括更新エラー:', error);
     res.status(500).json({ message: '一括更新に失敗しました' });
   }
 });
@@ -346,6 +397,7 @@ router.post('/', authenticateToken, async (req, res) => {
     res.status(500).json({ message: '投稿に失敗しました。', error: error.message });
   }
 });
+// 🆕 作品更新エンドポイント（ES同期対応）
 router.post('/:id([0-9a-fA-F]{24})/update', authenticateToken, async (req, res) => {
   try {
     const postId = req.params.id;
@@ -366,7 +418,7 @@ router.post('/:id([0-9a-fA-F]{24})/update', authenticateToken, async (req, res) 
       allowComments
     } = req.body;
 
-    console.log('Update request body:', req.body);
+    console.log('🔄 作品更新開始:', postId, { publicityStatus });
 
     // 投稿をデータベースから取得し、認証チェック
     const post = await Post.findOne({ _id: postId, author: userId });
@@ -415,91 +467,39 @@ router.post('/:id([0-9a-fA-F]{24})/update', authenticateToken, async (req, res) 
       }
     }
 
-    // 既存のシリーズから削除（シリーズが変更された場合）
-    if (post.series && post.series.toString() !== (series || '')) {
-      try {
-        await Series.findByIdAndUpdate(
-          post.series, 
-          { $pull: { posts: { postId: postId } } }
-        );
-      } catch (error) {
-        console.warn('旧シリーズからの削除でエラー:', error);
-      }
-    }
-
     // 投稿の各フィールドを更新
-    post.title = title.trim();
+    post.title = title;
     post.content = content;
-    post.description = description.trim();
+    post.description = description;
     post.tags = tags;
-    post.isOriginal = Boolean(original);
-    post.isAdultContent = Boolean(adultContent);
-    post.isAI = Boolean(aiGenerated);
-    
-    // AI証拠情報の更新
-    if (aiGenerated && aiEvidence) {
-      post.aiEvidence = {
-        tools: aiEvidence.tools,
-        url: aiEvidence.url || null,
-        description: aiEvidence.description
-      };
-    } else if (!aiGenerated) {
-      // AI生成でない場合はaiEvidenceをクリア
-      post.aiEvidence = null;
-    }
-    
-    post.wordCount = charCount || 0;
+    post.isOriginal = original;
+    post.isAdultContent = adultContent;
+    post.isAI = aiGenerated;
+    post.aiEvidence = aiGenerated ? aiEvidence : null;
+    post.wordCount = charCount;
     post.imageCount = imageCount || 0;
     post.publicityStatus = publicityStatus || 'public';
     post.allowComments = allowComments !== undefined ? Boolean(allowComments) : true;
     post.series = series || null;
     post.updatedAt = new Date();
 
+    // 旧シリーズから削除（シリーズが変更された場合）
+    if (post.series && series !== post.series.toString()) {
+      try {
+        const oldSeries = await Series.findById(post.series);
+        if (oldSeries) {
+          oldSeries.posts = oldSeries.posts.filter(p => p.postId.toString() !== postId);
+          await oldSeries.save();
+        }
+      } catch (error) {
+        console.warn('旧シリーズからの削除でエラー:', error);
+      }
+    }
+
     // 更新内容を保存（これでpost('save')フックが発火してES更新される）
     await post.save();
 
-    // Elasticsearchに手動で更新を送信（保険として）
-    try {
-      const { getEsClient } = require('../utils/esClient');
-      const sanitizeHtml = require('sanitize-html');
-      const esClient = getEsClient();
-      
-      if (esClient) {
-        const cleanContent = sanitizeHtml(post.content, {
-          allowedTags: [],
-          allowedAttributes: {}
-        });
-        
-        const esBody = {
-          title: post.title,
-          content: cleanContent,
-          description: post.description,
-          tags: post.tags || [],
-          author: post.author.toString(),
-          createdAt: post.createdAt,
-          updatedAt: post.updatedAt
-        };
-
-        // aiEvidenceフィールドがある場合は追加
-        if (post.aiEvidence) {
-          esBody.aiEvidence = {
-            tools: post.aiEvidence.tools || [],
-            url: post.aiEvidence.url || '',
-            description: post.aiEvidence.description || ''
-          };
-        }
-
-        await esClient.index({
-          index: 'posts',
-          id: post._id.toString(),
-          body: esBody,
-        });
-        
-        console.log('✅ Post updated in Elasticsearch:', post._id);
-      }
-    } catch (esError) {
-      console.warn('⚠️ Elasticsearch update failed (but MongoDB updated):', esError.message);
-    }
+    console.log('📝 MongoDB更新完了');
 
     // 新しいシリーズに追加（シリーズが指定された場合）
     if (series && series !== post.series) {
@@ -537,7 +537,7 @@ router.post('/:id([0-9a-fA-F]{24})/update', authenticateToken, async (req, res) 
     });
 
   } catch (error) {
-    console.error('Error updating post:', error);
+    console.error('❌ 作品更新エラー:', error);
     res.status(500).json({ 
       message: '投稿の更新に失敗しました。', 
       error: error.message 
@@ -595,6 +595,7 @@ router.get('/:id([0-9a-fA-F]{24})/edit', authenticateToken, async (req, res) => 
     });
   }
 });
+
 
 // 検索エンドポイント
 router.get('/search', async (req, res) => {

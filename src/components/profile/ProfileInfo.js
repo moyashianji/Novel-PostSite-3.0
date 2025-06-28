@@ -1,16 +1,12 @@
-// ProfileInfo.jsx - 最適化バージョン
+// ProfileInfo.jsx - ProfileHeaderを使用した最適化バージョン
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
-  Avatar,
   Typography,
-  IconButton,
   Card,
   CardContent,
   Divider,
   Chip,
-  Stack,
-  Tooltip,
   Tabs,
   Tab,
   Grid,
@@ -19,14 +15,10 @@ import {
   ListItem,
   ListItemText,
   ListItemAvatar,
-  Badge,
+  Avatar,
   CircularProgress
 } from '@mui/material';
 import EditProfile from './EditProfile';
-import TwitterIcon from '@mui/icons-material/Twitter';
-import PixivIcon from '@mui/icons-material/Pix';
-import LinkIcon from '@mui/icons-material/Link';
-import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
@@ -34,12 +26,9 @@ import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import TagIcon from '@mui/icons-material/Tag';
 import CommentIcon from '@mui/icons-material/Comment';
 import UpdateIcon from '@mui/icons-material/Update';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
-import LocalLibraryIcon from '@mui/icons-material/LocalLibrary';
-import WarningIcon from '@mui/icons-material/Warning';
 import FilterListIcon from '@mui/icons-material/FilterList';
-import ExternalLinkConfirmation from '../common/ExternalLinkConfirmation';
-import AutorenewIcon from '@mui/icons-material/Autorenew';
+
+import ProfileHeader from '../user/ProfileHeader';
 
 // TabPanel component - メモ化済み
 const TabPanel = React.memo(({ children, value, index, ...other }) => {
@@ -68,11 +57,11 @@ const ProfileInfo = React.memo(({ user, onProfileUpdate }) => {
   const [userStats, setUserStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
   const [error, setError] = useState(null);
-  const [confirmDialog, setConfirmDialog] = useState({ open: false, url: '' });
 
   // キャッシュのタイムスタンプと期限を管理するためのステート
   const [cacheTimestamp, setCacheTimestamp] = useState(null);
   const CACHE_EXPIRY = 5 * 60 * 1000; // 5分間のキャッシュ期限
+
   // データ取得 - タブに応じて必要なデータのみ取得
   useEffect(() => {
     const fetchUserData = async () => {
@@ -133,10 +122,7 @@ const ProfileInfo = React.memo(({ user, onProfileUpdate }) => {
 
     fetchUserData();
   }, [user, tabValue]);
-  const handleExternalLinkClick = (e, url) => {
-    e.preventDefault();
-    setConfirmDialog({ open: true, url });
-  };
+
   // タブ変更ハンドラ - キャッシュを考慮
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -151,7 +137,6 @@ const ProfileInfo = React.memo(({ user, onProfileUpdate }) => {
         setRecentActivity(JSON.parse(cachedActivityJSON));
       } else {
         // キャッシュがない場合はAPI取得
-        // ここではsetIsLoading(true)はスキップして活動データのみ取得
         fetch(`/api/users/${user._id}/activity`)
           .then(res => {
             if (!res.ok) throw new Error('活動情報の取得に失敗しました');
@@ -163,26 +148,10 @@ const ProfileInfo = React.memo(({ user, onProfileUpdate }) => {
           })
           .catch(err => {
             console.error('活動データ取得エラー:', err);
-            // エラーはセットしないで既存の表示を維持
           });
       }
     }
   };
-
-  // 文字列が非空かチェック
-  const hasContent = (str) => str && str.trim().length > 0;
-
-  // キャッシュバスター付きアバターURL
-  const avatarUrl = useMemo(() => {
-    if (!user || !user.icon) return null;
-    return `${user.icon}?${new Date().getTime()}`;
-  }, [user]);
-
-  // ソーシャルリンク数
-  const socialLinksCount = useMemo(() => {
-    if (!user) return 0;
-    return [user.xLink, user.pixivLink, user.otherLink].filter(hasContent).length;
-  }, [user]);
 
   // 日付フォーマット
   const formatDate = (dateString) => {
@@ -205,6 +174,24 @@ const ProfileInfo = React.memo(({ user, onProfileUpdate }) => {
       views: activity.views || activity.post?.viewCounter || 0
     })).slice(0, 5); // 最新5件に制限
   }, [recentActivity]);
+
+  // ProfileHeaderに渡す統計データ
+  const workStats = useMemo(() => ({
+    total: userStats?.postCount || 0,
+    series: userStats?.seriesCount || 0,
+    totalViews: userStats?.totalViews || 0
+  }), [userStats]);
+
+  // ProfileHeaderのハンドラー関数（プレースホルダー）
+  const handleFollowToggle = () => {
+    // フォロー機能のハンドリング（実装が必要）
+    console.log('フォロー機能が呼ばれました');
+  };
+
+  const handleAuthorTagClick = (author) => {
+    // 作家タグクリック時の処理（実装が必要）
+    console.log('作家タグがクリックされました:', author);
+  };
 
   // ローディング表示
   if (isLoading) {
@@ -263,254 +250,42 @@ const ProfileInfo = React.memo(({ user, onProfileUpdate }) => {
   }
 
   return (
-    <Card
-      elevation={3}
-      sx={{
-        width: '100%',
-        mb: 4,
-        borderRadius: 4,
-        overflow: 'visible',
-        position: 'relative',
-      }}
-    >
-      {/* Header Section with Cover Image */}
-      <Box
-        sx={{
-          height: 150,
-          width: '100%',
-          borderTopLeftRadius: 16,
-          borderTopRightRadius: 16,
-          background: 'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)',
-          position: 'relative',
-          overflow: 'hidden'
-        }}
-      >
-        {/* Decorative elements in the cover */}
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            opacity: 0.1,
-            background: 'url("data:image/svg+xml,%3Csvg width=\'100\' height=\'100\' viewBox=\'0 0 100 100\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z\' fill=\'%23ffffff\' fill-opacity=\'1\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")',
-          }}
+    <Box sx={{ width: '100%', mb: 4 }}>
+      {/* ProfileHeaderコンポーネントを使用 */}
+      <Box sx={{ position: 'relative' }}>
+        <ProfileHeader
+          user={user}
+          workStats={workStats}
+          followerCount={user.followers?.length || 0}
+          isFollowing={false} // 実際の値を設定する必要があります
+          onFollowToggle={handleFollowToggle}
+          onAuthorTagClick={handleAuthorTagClick}
         />
+        
+        {/* 編集ボタンをヘッダーの上に重ねて配置 */}
+        <Box 
+          sx={{ 
+            position: 'absolute', 
+            top: 16, 
+            right: 16, 
+            zIndex: 10 
+          }}
+        >
+          <EditProfile user={user} onProfileUpdate={onProfileUpdate} />
+        </Box>
       </Box>
 
-      <CardContent sx={{ p: 0, position: 'relative' }}>
-        <Box px={4} pb={3} pt={0} position="relative">
-          {/* Avatar that overlaps the cover */}
-          <Avatar
-            src={avatarUrl}
-            alt={user.nickname}
-            sx={{
-              width: 130,
-              height: 130,
-              border: '5px solid white',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-              position: 'relative',
-              top: -65,
-              mb: -4,
-            }}
-          />
-
-          {/* Badge indicators for user profile */}
-          <Box position="absolute" top={-35} left={150}>
-            <Stack direction="row" spacing={1}>
-              {userStats?.aiUsagePercent > 50 && (
-                <Tooltip title="AIを活用している作家">
-                  <Chip
-                    icon={<SmartToyIcon />}
-                    label="AI創作"
-                    size="small"
-                    sx={{ bgcolor: 'rgba(25, 118, 210, 0.8)', color: 'white' }}
-                  />
-                </Tooltip>
-              )}
-
-              {userStats?.originalContentPercent > 50 && (
-                <Tooltip title="オリジナル作品が多い">
-                  <Chip
-                    icon={<LocalLibraryIcon />}
-                    label="オリジナル"
-                    size="small"
-                    sx={{ bgcolor: 'rgba(46, 125, 50, 0.8)', color: 'white' }}
-                  />
-                </Tooltip>
-              )}
-
-            </Stack>
-          </Box>
-
-          {/* Edit button positioned on the top right */}
-          <Box position="absolute" top={-45} right={24}>
-            <EditProfile user={user} onProfileUpdate={onProfileUpdate} />
-          </Box>
-
-          {/* User basic info */}
-          <Box mt={2}>
-            <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 0.5 }}>
-              {user.nickname}
-            </Typography>
-
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-              <Chip
-                icon={<PeopleAltIcon />}
-                label={`フォロワー ${user.followers?.length || 0}`}
-                size="small"
-                sx={{
-                  backgroundColor: 'rgba(0,0,0,0.05)',
-                  '& .MuiChip-icon': { color: 'primary.main' }
-                }}
-              />
-
-              <Chip
-                icon={<AutoStoriesIcon />}
-                label={`作品数 ${userStats?.postCount || 0}`}
-                size="small"
-                sx={{
-                  backgroundColor: 'rgba(0,0,0,0.05)',
-                  '& .MuiChip-icon': { color: 'primary.main' }
-                }}
-              />
-
-              <Chip
-                icon={<FilterListIcon />}
-                label={`シリーズ ${userStats?.seriesCount || 0}`}
-                size="small"
-                sx={{
-                  backgroundColor: 'rgba(0,0,0,0.05)',
-                  '& .MuiChip-icon': { color: 'primary.main' }
-                }}
-              />
-
-              
-            </Stack>
-
-            {hasContent(user.description) && (
-              <Paper elevation={0} sx={{ p: 2, mt: 3, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 2 }}>
-                <Typography variant="body1" sx={{ lineHeight: 1.7 }}>
-                  {user.description}
-                </Typography>
-              </Paper>
-            )}
-
-            {/* Social links - only show if at least one link exists */}
-            {socialLinksCount > 0 && (
-              <Box display="flex" justifyContent="flex-start" mt={3}>
-                {user.xLink && (
-                  <Tooltip title="X (Twitter)">
-                    <IconButton
-                      onClick={(e) => handleExternalLinkClick(e, user.xLink)}
-
-                      sx={{
-                        color: '#1DA1F2',
-                        backgroundColor: 'rgba(0,0,0,0.05)',
-                        mr: 1,
-                        transition: 'all 0.2s',
-                        '&:hover': {
-                          color: '#0d8ddb',
-                          backgroundColor: 'rgba(0,0,0,0.1)',
-                          transform: 'translateY(-2px)'
-                        }
-                      }}
-                    >
-                      <TwitterIcon />
-                    </IconButton>
-                  </Tooltip>
-                )}
-                {user.pixivLink && (
-                  <Tooltip title="Pixiv">
-                    <IconButton
-                      onClick={(e) => handleExternalLinkClick(e, user.pixivLink)}
-
-                      sx={{
-                        color: '#0096fa',
-                        backgroundColor: 'rgba(0,0,0,0.05)',
-                        mr: 1,
-                        transition: 'all 0.2s',
-                        '&:hover': {
-                          color: '#007bb5',
-                          backgroundColor: 'rgba(0,0,0,0.1)',
-                          transform: 'translateY(-2px)'
-                        }
-                      }}
-                    >
-                      <PixivIcon />
-                    </IconButton>
-                  </Tooltip>
-                )}
-                {user.otherLink && (
-                  <Tooltip title={user.otherLink}>
-                    <IconButton
-                      onClick={(e) => handleExternalLinkClick(e, user.otherLink)}
-
-                      sx={{
-                        color: '#444',
-                        backgroundColor: 'rgba(0,0,0,0.05)',
-                        transition: 'all 0.2s',
-                        '&:hover': {
-                          color: '#000',
-                          backgroundColor: 'rgba(0,0,0,0.1)',
-                          transform: 'translateY(-2px)'
-                        }
-                      }}
-                    >
-                      <LinkIcon />
-                    </IconButton>
-                  </Tooltip>
-                )}
-              </Box>
-            )}
-
-            <ExternalLinkConfirmation
-              open={confirmDialog.open}
-              handleClose={() => setConfirmDialog({ ...confirmDialog, open: false })}
-              url={confirmDialog.url}
-            />
-          </Box>
-          <Box mt={4}>
-  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-    好きな作家
-  </Typography>
-  {user.favoriteAuthors && user.favoriteAuthors.length > 0 ? (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-      {user.favoriteAuthors.map((author, index) => (
-        <Chip
-          key={index}
-          icon={<LocalLibraryIcon />}
-          label={author}
-          sx={{
-            py: 2,
-            bgcolor: 'rgba(25, 118, 210, 0.08)',
-            border: '1px solid rgba(25, 118, 210, 0.2)',
-            '&:hover': {
-              bgcolor: 'rgba(25, 118, 210, 0.12)',
-            }
-          }}
-        />
-      ))}
-    </Box>
-  ) : (
-    <Paper 
-      elevation={0} 
-      sx={{ 
-        p: 3, 
-        borderRadius: 2, 
-        bgcolor: 'rgba(0,0,0,0.02)', 
-        textAlign: 'center' 
-      }}
-    >
-      <Typography color="textSecondary">
-        好きな作家は設定されていません
-      </Typography>
-    </Paper>
-  )}
-</Box>
-          {/* Stats & Activity section */}
-          <Box mt={4}>
+      {/* 統計・活動・タグセクション */}
+      <Card
+        elevation={3}
+        sx={{
+          borderRadius: 4,
+          overflow: 'hidden',
+          mt: 2
+        }}
+      >
+        <CardContent sx={{ p: 0 }}>
+          <Box px={4} pt={4}>
             <Tabs
               value={tabValue}
               onChange={handleTabChange}
@@ -623,8 +398,6 @@ const ProfileInfo = React.memo(({ user, onProfileUpdate }) => {
                   </Paper>
                 </Grid>
               </Grid>
-
-
             </TabPanel>
 
             {/* Activity Tab */}
@@ -739,9 +512,9 @@ const ProfileInfo = React.memo(({ user, onProfileUpdate }) => {
               )}
             </TabPanel>
           </Box>
-        </Box>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </Box>
   );
 });
 

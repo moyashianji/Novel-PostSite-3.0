@@ -7,10 +7,12 @@ const Post = require('../models/Post');
 const Good = require('../models/Good');
 const Series = require('../models/Series');
 const Follow = require('../models/Follow'); // Followモデルのインポート
+const { getEsClient } = require('../utils/esClient'); // 🆕 ES客户端追加
 
 const router = express.Router();
-
-router.get('/:id([0-9a-fA-F]{24})/works', async (req, res) => {
+const esClient = getEsClient(); // 🆕 ESクライアント初期化
+// 🆕 シリーズワーク取得エンドポイント（アクセス制御対応）
+router.get('/:id([0-9a-fA-F]{24})/works', authenticateToken,async (req, res) => {
   try {
     const seriesId = req.params.id;
 
@@ -18,26 +20,44 @@ router.get('/:id([0-9a-fA-F]{24})/works', async (req, res) => {
     const series = await Series.findById(seriesId)
       .populate({
         path: 'posts.postId',
-        select: 'title description author series tags viewCounter goodCounter bookShelfCounter wordCount isAdultContent isAI isOriginal aiEvidence',
-      populate: [
-        {
-          path: 'author',
-          select: 'nickname icon'
-        },
-        {
-          path: 'series',
-          select: 'title _id'
-        }
-      ]
+        select: 'title description author series tags viewCounter goodCounter bookShelfCounter wordCount isAdultContent isAI isOriginal aiEvidence publicityStatus',
+        populate: [
+          {
+            path: 'author',
+            select: 'nickname icon'
+          },
+          {
+            path: 'series',
+            select: 'title _id'
+          }
+        ]
       })
-      .populate('author', '_id nickname icon'); // シリーズの作者情報も取得
+      .populate('author', '_id nickname icon');
 
     if (!series) {
       console.log('Series not found:', seriesId);
       return res.status(404).json({ message: 'シリーズが見つかりませんでした。' });
     }
 
-    console.log('Series found:', series.title);
+    // 🆕 アクセス制御ロジック（作品と同じ仕組み）
+    const userId = req.user?._id;
+    const isAuthor = userId && series.author && userId.toString() === series.author._id.toString();
+    
+    console.log('🔍 シリーズアクセス制御チェック:', {
+      seriesId,
+      publicityStatus: series.publicityStatus,
+      isAuthor,
+      userId: userId?.toString(),
+      authorId: series.author?._id?.toString()
+    });
+
+    // 非公開シリーズは作者以外アクセス不可
+    if (series.publicityStatus === 'private' && !isAuthor) {
+      console.log('❌ 非公開シリーズへの不正アクセス試行');
+      return res.status(403).json({ message: 'このシリーズにはアクセスできません。' });
+    }
+
+    console.log('✅ シリーズアクセス許可');
 
     // シリーズ情報をレスポンスに含める
     const seriesInfo = {
@@ -48,65 +68,110 @@ router.get('/:id([0-9a-fA-F]{24})/works', async (req, res) => {
       isOriginal: series.isOriginal,
       isAdultContent: series.isAdultContent,
       aiGenerated: series.aiGenerated,
-      author: series.author, // 作者情報
+      publicityStatus: series.publicityStatus, // 🆕 公開設定を追加
+      author: series.author,
       createdAt: series.createdAt
     };
 
     // シリーズ内の投稿情報を取得して整理
+    // 🆕 投稿レベルでのアクセス制御も適用
     const works = series.posts
       .filter(post => {
-        const hasPostId = !!post.postId;
-        return hasPostId; // postIdが存在するか確認
-      })
-      .map(post => {
-        const postData = post.postId;
-        return {
-          _id: postData._id,
-          title: postData.title,
-          description: postData.description,
-          content: postData.content?.substring(0, 150), // 内容の一部（最初の150文字）
-          wordCount: postData.wordCount,
-          episodeNumber: post.episodeNumber,
-          author: postData.author, // 作者情報
-          tags: postData.tags,
-          createdAt: postData.createdAt,
-          updatedAt: postData.updatedAt,
-          viewCounter: postData.viewCounter,
-          goodCounter: postData.goodCounter,
-          isAdultContent: postData.isAdultContent,
-          isOriginal: postData.isOriginal,
-          aiEvidence: postData.aiEvidence
-        };
-      });
+        const hasPostId = !!(post.postId && post.postId._id);
+        if (!hasPostId) {
+          console.warn(`⚠ Post without postId found in series ${seriesId}:`, post);
+          return false;
+        }
 
-    console.log(`Found ${works.length} works in series`);
-    
-    // シリーズ情報と作品一覧を含む完全なレスポンス
+        // 投稿レベルのアクセス制御
+        const postData = post.postId;
+        const isPostAuthor = userId && postData.author && userId.toString() === postData.author._id.toString();
+        
+        // 非公開投稿は作者以外には表示しない
+        if (postData.publicityStatus === 'private' && !isPostAuthor) {
+          console.log(`🔒 非公開投稿をフィルタ: ${postData._id}`);
+          return false;
+        }
+        
+        return true;
+      })
+      .map(post => ({
+        _id: post.postId._id,
+        title: post.postId.title,
+        description: post.postId.description,
+        author: post.postId.author,
+        series: post.postId.series,
+        tags: post.postId.tags,
+        viewCounter: post.postId.viewCounter,
+        goodCounter: post.postId.goodCounter,
+        bookShelfCounter: post.postId.bookShelfCounter,
+        wordCount: post.postId.wordCount,
+        isAdultContent: post.postId.isAdultContent,
+        isAI: post.postId.isAI,
+        isOriginal: post.postId.isOriginal,
+        aiEvidence: post.postId.aiEvidence,
+        publicityStatus: post.postId.publicityStatus, // 🆕 投稿の公開設定も含める
+        episodeNumber: post.episodeNumber,
+      }))
+      .sort((a, b) => (a.episodeNumber || 0) - (b.episodeNumber || 0));
+
+    console.log(`✅ ${works.length}件の作品を返却`);
+
     res.status(200).json({
       series: seriesInfo,
-      works: works
+      works
     });
+
   } catch (error) {
-    console.error('Error fetching works in series:', error);
-    res.status(500).json({ message: '作品一覧の取得に失敗しました。', error: error.message });
+    console.error('Error fetching series works:', error);
+    res.status(500).json({ message: 'シリーズ作品の取得に失敗しました。', error: error.message });
   }
 });
-// シリーズの詳細情報を取得するエンドポイント
-router.get('/:id([0-9a-fA-F]{24})', authenticateToken, async (req, res) => {
+// 🆕 シリーズ詳細取得エンドポイント（アクセス制御対応）
+router.get('/:id([0-9a-fA-F]{24})', authenticateToken,async (req, res) => {
   try {
     const seriesId = req.params.id;
-    const userId = req.user._id; // 認証されたユーザーのIDを取得
 
-    // 自分のシリーズのみアクセスを許可
-    const series = await Series.findOne({ _id: seriesId, author: userId }).populate('posts.postId');
+    // シリーズを取得
+    const series = await Series.findById(seriesId)
+      .populate('author', '_id nickname icon')
+      .populate('posts.postId', 'title description goodCounter bookShelfCounter viewCounter publicityStatus');
 
     if (!series) {
       return res.status(404).json({ message: 'シリーズが見つかりませんでした。' });
     }
 
-    // 各投稿の詳細情報を抽出
-    const populatedPosts = series.posts.map((post) => {
-      if (post.postId) {
+    // 🆕 アクセス制御ロジック
+    const userId = req.user?._id;
+    const isAuthor = userId && series.author && userId.toString() === series.author._id.toString();
+    
+    console.log('🔍 シリーズ詳細アクセス制御チェック:', {
+      seriesId,
+      publicityStatus: series.publicityStatus,
+      isAuthor,
+      userId: userId?.toString(),
+      authorId: series.author?._id?.toString()
+    });
+
+    // 非公開シリーズは作者以外アクセス不可
+    if (series.publicityStatus === 'private' && !isAuthor) {
+      console.log('❌ 非公開シリーズ詳細への不正アクセス試行');
+      return res.status(403).json({ message: 'このシリーズにはアクセスできません。' });
+    }
+
+    // 各投稿の詳細情報を抽出（アクセス制御付き）
+    const populatedPosts = series.posts
+      .map((post) => {
+        if (!post.postId) return null;
+
+        // 投稿レベルのアクセス制御
+        const isPostAuthor = userId && post.postId.author && userId.toString() === post.postId.author.toString();
+        
+        // 非公開投稿は作者以外には表示しない
+        if (post.postId.publicityStatus === 'private' && !isPostAuthor) {
+          return null;
+        }
+
         return {
           _id: post.postId._id,
           title: post.postId.title,
@@ -114,14 +179,18 @@ router.get('/:id([0-9a-fA-F]{24})', authenticateToken, async (req, res) => {
           goodCounter: post.postId.goodCounter,
           bookShelfCounter: post.postId.bookShelfCounter,
           viewCounter: post.postId.viewCounter,
+          publicityStatus: post.postId.publicityStatus,
           episodeNumber: post.episodeNumber,
         };
-      }
-      return null;
-    }).filter(post => post !== null);
+      })
+      .filter(post => post !== null);
 
-    // 必要に応じて他のフィールドも追加する
-    res.status(200).json({
+    // シリーズの統計情報を計算
+    const totalLikes = populatedPosts.reduce((acc, post) => acc + (post.goodCounter || 0), 0);
+    const totalBookshelf = populatedPosts.reduce((acc, post) => acc + (post.bookShelfCounter || 0), 0);
+    const totalViews = populatedPosts.reduce((acc, post) => acc + (post.viewCounter || 0), 0);
+
+    const responseData = {
       _id: series._id,
       title: series.title,
       description: series.description,
@@ -129,13 +198,23 @@ router.get('/:id([0-9a-fA-F]{24})', authenticateToken, async (req, res) => {
       isOriginal: series.isOriginal,
       isAdultContent: series.isAdultContent,
       aiGenerated: series.aiGenerated,
-      isCompleted: series.isCompleted || false, // isCompletedフィールドを追加
-
+      isCompleted: series.isCompleted,
+      publicityStatus: series.publicityStatus, // 🆕 公開設定を追加
+      author: series.author,
+      createdAt: series.createdAt,
+      updatedAt: series.updatedAt,
       posts: populatedPosts,
-    });
+      totalLikes,
+      totalBookshelf,
+      totalViews,
+      totalPosts: populatedPosts.length,
+      totalPoints: totalLikes * 2 + totalBookshelf * 2
+    };
+
+    res.status(200).json(responseData);
   } catch (error) {
     console.error('Error fetching series details:', error);
-    res.status(500).json({ message: 'シリーズの詳細情報を取得できませんでした。', error });
+    res.status(500).json({ message: 'シリーズの取得に失敗しました。', error: error.message });
   }
 });
 router.get('/:id([0-9a-fA-F]{24})/posts', async (req, res) => {
