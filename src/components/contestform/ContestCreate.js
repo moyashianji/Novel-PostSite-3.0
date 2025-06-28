@@ -39,7 +39,15 @@ import ContestTagSection from './formsections/ContestTagSection';
 import FormActions from './formsections/FormActions';
 
 // ユーティリティをインポート
-import { getLocalStorageData, saveFormData, savePreviewData } from './utils/storage';
+import { 
+  getLocalStorageData, 
+  saveFormData, 
+  savePreviewData, 
+  saveImagePreview, 
+  getImagePreview, 
+  removeImagePreview,
+  getStorageInfo 
+} from './utils/storage';
 import { base64ToFile, processHtmlImages } from './utils/imageProcessor';
 import { isValidObjectId, validateForm } from './utils/validation';
 import { validateImageFile, resizeImage, formatFileSize, IMAGE_LIMITS } from './utils/imageValidator';
@@ -157,8 +165,8 @@ const ContestCreate = ({ initialData, onSubmit }) => {
   // 画像
   const [iconImage, setIconImage] = useState(null);
   const [headerImage, setHeaderImage] = useState(null);
-  const [iconPreview, setIconPreview] = useState(initialData?.iconPreview || getLocalStorageData('iconPreview', null));
-  const [headerPreview, setHeaderPreview] = useState(initialData?.headerPreview || getLocalStorageData('headerPreview', null));
+  const [iconPreview, setIconPreview] = useState(null);
+  const [headerPreview, setHeaderPreview] = useState(null);
   const [imageError, setImageError] = useState({ icon: '', header: '' });
   const [uploadProgress, setUploadProgress] = useState({ icon: 0, header: 0 });
 
@@ -225,6 +233,80 @@ const ContestCreate = ({ initialData, onSubmit }) => {
   const progressPercentage = useMemo(() => {
     return ((activeStep + 1) / steps.length) * 100;
   }, [activeStep, steps.length]);
+
+  // LocalStorageの容量監視（デバッグ用）
+  useEffect(() => {
+    const storageInfo = getStorageInfo();
+    if (storageInfo) {
+      console.log('LocalStorage使用状況:', storageInfo);
+    }
+  }, []);
+
+  // ページロード時に画像プレビューを復元
+  useEffect(() => {
+    const iconData = getImagePreview('icon');
+    const headerData = getImagePreview('header');
+    
+    if (iconData.preview && iconData.fileName) {
+      setIconPreview(iconData.preview);
+    }
+    
+    if (headerData.preview && headerData.fileName) {
+      setHeaderPreview(headerData.preview);
+    }
+  }, []);
+
+  // フォームデータ保存（画像データを除外）
+  const saveCurrentFormData = useCallback(() => {
+    const formData = {
+      title,
+      shortDescription,
+      description,
+      // 画像プレビューは個別保存されるため除外
+      applicationStartDate,
+      applicationEndDate,
+      reviewStartDate,
+      reviewEndDate,
+      resultAnnouncementDate,
+      enableJudges,
+      judges,
+      allowFinishedWorks,
+      allowPreStartDate,
+      restrictAI,
+      aiTags,
+      allowR18,
+      restrictGenres,
+      genres,
+      restrictWordCount,
+      minWordCount,
+      maxWordCount,
+      allowSeries,
+      minEntries,
+      maxEntries,
+      status,
+      contestTags,
+    };
+
+    const success = saveFormData(formData);
+    if (!success) {
+      console.warn('フォームデータの保存に失敗しました');
+    }
+  }, [
+    title, shortDescription, description,
+    applicationStartDate, applicationEndDate, reviewStartDate, reviewEndDate, resultAnnouncementDate,
+    enableJudges, judges, allowFinishedWorks, allowPreStartDate, restrictAI, aiTags,
+    allowR18, restrictGenres, genres, restrictWordCount, minWordCount, maxWordCount,
+    allowSeries, minEntries, maxEntries, status, contestTags,
+  ]);
+
+  // フォームデータ保存のデバウンス処理
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      saveCurrentFormData();
+    }, 1000); // 1秒後に保存
+
+    return () => clearTimeout(timer);
+  }, [saveCurrentFormData]);
 
   // 次のステップへ進む
   const handleNext = useCallback(() => {
@@ -417,63 +499,20 @@ const ContestCreate = ({ initialData, onSubmit }) => {
     fetchUserInfo();
   }, []);
 
-  // LocalStorageから画像をロード
+  // LocalStorageから画像をロード（修正版）
   useEffect(() => {
-    const storedIconPreview = localStorage.getItem('iconPreview');
-    const storedIconName = localStorage.getItem('iconImageName');
-    if (storedIconPreview && storedIconName) {
-      setIconPreview(storedIconPreview);
-      setIconImage(base64ToFile(storedIconPreview, storedIconName));
+    const iconData = getImagePreview('icon');
+    if (iconData.preview && iconData.fileName) {
+      setIconPreview(iconData.preview);
+      setIconImage(base64ToFile(iconData.preview, iconData.fileName));
     }
 
-    const storedHeaderPreview = localStorage.getItem('headerPreview');
-    const storedHeaderName = localStorage.getItem('headerImageName');
-    if (storedHeaderPreview && storedHeaderName) {
-      setHeaderPreview(storedHeaderPreview);
-      setHeaderImage(base64ToFile(storedHeaderPreview, storedHeaderName));
+    const headerData = getImagePreview('header');
+    if (headerData.preview && headerData.fileName) {
+      setHeaderPreview(headerData.preview);
+      setHeaderImage(base64ToFile(headerData.preview, headerData.fileName));
     }
   }, []);
-
-  // フォームデータをLocalStorageに保存
-  useEffect(() => {
-    const formData = {
-      title,
-      shortDescription,
-      description,
-      iconPreview,
-      headerPreview,
-      applicationStartDate,
-      applicationEndDate,
-      reviewStartDate,
-      reviewEndDate,
-      resultAnnouncementDate,
-      enableJudges,
-      judges,
-      allowFinishedWorks,
-      allowPreStartDate,
-      restrictAI,
-      aiTags,
-      allowR18,
-      restrictGenres,
-      genres,
-      restrictWordCount,
-      minWordCount,
-      maxWordCount,
-      allowSeries,
-      minEntries,
-      maxEntries,
-      status,
-      contestTags,
-    };
-
-    saveFormData(formData);
-  }, [
-    title, shortDescription, description, iconPreview, headerPreview,
-    applicationStartDate, applicationEndDate, reviewStartDate, reviewEndDate, resultAnnouncementDate,
-    enableJudges, judges, allowFinishedWorks, allowPreStartDate, restrictAI, aiTags,
-    allowR18, restrictGenres, genres, restrictWordCount, minWordCount, maxWordCount,
-    allowSeries, minEntries, maxEntries, status, contestTags,
-  ]);
 
   // 保存された審査員データをロード
   useEffect(() => {
@@ -485,8 +524,7 @@ const ContestCreate = ({ initialData, onSubmit }) => {
     fetchStoredJudges();
   }, []);
 
-  // 画像アップロード処理
-  // 画像アップロード処理を更新
+  // 画像アップロード処理（修正版）
   const handleImageUpload = useCallback(async (event, type) => {
     // エラーをクリア
     setImageError(prev => ({ ...prev, [type]: '' }));
@@ -497,13 +535,11 @@ const ContestCreate = ({ initialData, onSubmit }) => {
       if (type === 'icon') {
         setIconImage(null);
         setIconPreview(null);
-        localStorage.removeItem('iconPreview');
-        localStorage.removeItem('iconImageName');
+        removeImagePreview('icon');
       } else if (type === 'header') {
         setHeaderImage(null);
         setHeaderPreview(null);
-        localStorage.removeItem('headerPreview');
-        localStorage.removeItem('headerImageName');
+        removeImagePreview('header');
       }
       return;
     }
@@ -519,18 +555,21 @@ const ContestCreate = ({ initialData, onSubmit }) => {
           ...prev, 
           [type]: validation.errors.join('\n') 
         }));
-        // ファイル入力をクリア
         event.target.value = '';
         return;
       }
 
       setUploadProgress(prev => ({ ...prev, [type]: 25 }));
 
-      // 必要に応じて画像をリサイズ
+      // 必要に応じて画像をリサイズ（より積極的に圧縮）
       let processedFile = file;
-      if (file.size > 1024 * 1024) { // 1MB以上の場合はリサイズ
+      const shouldCompress = file.size > 512 * 1024; // 512KB以上は圧縮
+      
+      if (shouldCompress) {
         const maxDimension = type === 'icon' ? 512 : 1920;
-        processedFile = await resizeImage(file, maxDimension, maxDimension, 0.85);
+        // 圧縮率を上げる（品質を下げる）
+        const quality = file.size > 2 * 1024 * 1024 ? 0.6 : 0.8;
+        processedFile = await resizeImage(file, maxDimension, maxDimension, quality);
         setUploadProgress(prev => ({ ...prev, [type]: 50 }));
       }
 
@@ -540,17 +579,21 @@ const ContestCreate = ({ initialData, onSubmit }) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const base64String = e.target.result;
+        
+        // サイズチェック（base64は元のサイズの約1.37倍になる）
+        const estimatedSize = base64String.length * 0.75;
+        if (estimatedSize > 1024 * 1024) { // 1MB以上の場合は警告
+          console.warn(`Large image preview (${(estimatedSize / (1024 * 1024)).toFixed(1)}MB):`, type);
+        }
 
         if (type === 'icon') {
           setIconImage(processedFile);
           setIconPreview(base64String);
-          localStorage.setItem('iconPreview', base64String);
-          localStorage.setItem('iconImageName', processedFile.name || file.name);
+          saveImagePreview('icon', base64String, processedFile.name || file.name);
         } else if (type === 'header') {
           setHeaderImage(processedFile);
           setHeaderPreview(base64String);
-          localStorage.setItem('headerPreview', base64String);
-          localStorage.setItem('headerImageName', processedFile.name || file.name);
+          saveImagePreview('header', base64String, processedFile.name || file.name);
         }
 
         setUploadProgress(prev => ({ ...prev, [type]: 100 }));
@@ -672,7 +715,6 @@ const ContestCreate = ({ initialData, onSubmit }) => {
     );
   }, [title, shortDescription, description, applicationStartDate, applicationEndDate]);
 
-  // フォーム送信
   // フォーム送信時のエラーハンドリングを改善
   const handleSubmit = useCallback(async () => {
     if (!validateFormData()) {
@@ -766,7 +808,8 @@ const ContestCreate = ({ initialData, onSubmit }) => {
       // LocalStorageをクリア
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('iconPreview') || key.startsWith('headerPreview') || 
-            key.startsWith('iconImageName') || key.startsWith('headerImageName')) {
+            key.startsWith('iconImageName') || key.startsWith('headerImageName') ||
+            key === 'contestFormData') {
           localStorage.removeItem(key);
         }
       });
@@ -853,14 +896,20 @@ const ContestCreate = ({ initialData, onSubmit }) => {
   // 入力ハンドラー
   const handleTitleChange = useCallback((e) => {
     setTitle(e.target.value);
+    // エラークリア
+    setErrors(prev => ({ ...prev, title: false }));
   }, []);
 
   const handleShortDescriptionChange = useCallback((e) => {
     setShortDescription(e.target.value);
+    // エラークリア
+    setErrors(prev => ({ ...prev, shortDescription: false }));
   }, []);
 
   const handleDescriptionChange = useCallback((value) => {
     setDescription(value);
+    // エラークリア
+    setErrors(prev => ({ ...prev, description: false }));
   }, []);
 
   return (

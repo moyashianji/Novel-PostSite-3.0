@@ -14,12 +14,206 @@ import {
   Alert,
   InputAdornment,
   Fade,
-  Chip
+  Chip,
+  useTheme
 } from '@mui/material';
+import { styled, alpha } from '@mui/material/styles';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import EventIcon from '@mui/icons-material/Event';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+
+// テーマ対応のスタイルコンポーネント
+const SectionTitle = styled(Typography)(({ theme }) => ({
+  color: theme.palette.text.primary,
+  fontWeight: 700,
+  position: 'relative',
+  '&::after': {
+    content: '""',
+    position: 'absolute',
+    bottom: '-8px',
+    left: 0,
+    width: '60px',
+    height: '4px',
+    backgroundColor: theme.palette.primary.main,
+    borderRadius: '2px'
+  }
+}));
+
+const StyledPaper = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(3),
+  marginBottom: theme.spacing(4),
+  border: `1px solid ${theme.palette.divider}`,
+  borderRadius: theme.spacing(1.5),
+  backgroundColor: theme.palette.background.paper,
+  transition: 'all 0.3s ease',
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 4px 20px rgba(0, 0, 0, 0.3)'
+    : '0 4px 20px rgba(0, 0, 0, 0.08)',
+  '&:hover': {
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 8px 30px rgba(0, 0, 0, 0.4)'
+      : '0 8px 30px rgba(0, 0, 0, 0.12)',
+    transform: 'translateY(-2px)',
+  },
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(2),
+  }
+}));
+
+const SectionLabel = styled(Typography)(({ theme, required }) => ({
+  fontWeight: 600,
+  marginBottom: theme.spacing(2),
+  display: 'inline-flex',
+  alignItems: 'center',
+  backgroundColor: required 
+    ? alpha(theme.palette.primary.main, 0.1) 
+    : alpha(theme.palette.text.secondary, 0.08),
+  color: required 
+    ? theme.palette.primary.main 
+    : theme.palette.text.secondary,
+  padding: theme.spacing(0.5, 1.5),
+  borderRadius: theme.spacing(0.75),
+  border: `1px solid ${required 
+    ? alpha(theme.palette.primary.main, 0.2) 
+    : alpha(theme.palette.text.secondary, 0.2)}`,
+}));
+
+const StyledFormControl = styled(FormControl)(({ theme }) => ({
+  marginBottom: theme.spacing(1.5),
+  '& .MuiOutlinedInput-root': {
+    borderRadius: theme.spacing(1),
+    backgroundColor: theme.palette.mode === 'dark'
+      ? alpha(theme.palette.background.default, 0.5)
+      : alpha(theme.palette.primary.main, 0.02),
+    transition: 'all 0.3s ease',
+    '& fieldset': {
+      borderColor: theme.palette.divider,
+    },
+    '&:hover fieldset': {
+      borderColor: alpha(theme.palette.primary.main, 0.6),
+    },
+    '&.Mui-focused': {
+      backgroundColor: theme.palette.mode === 'dark'
+        ? alpha(theme.palette.background.paper, 0.8)
+        : alpha(theme.palette.primary.main, 0.05),
+      '& fieldset': {
+        borderColor: theme.palette.primary.main,
+        borderWidth: '2px',
+        boxShadow: theme.palette.mode === 'dark'
+          ? `0 0 0 3px ${alpha(theme.palette.primary.main, 0.2)}`
+          : `0 0 0 3px ${alpha(theme.palette.primary.main, 0.1)}`,
+      },
+    },
+  },
+  '& .MuiSelect-select': {
+    color: theme.palette.text.primary,
+    display: 'flex',
+    alignItems: 'center',
+  },
+}));
+
+const StyledTextField = styled(TextField)(({ theme }) => ({
+  '& .MuiOutlinedInput-root': {
+    borderRadius: theme.spacing(1),
+    backgroundColor: theme.palette.mode === 'dark'
+      ? alpha(theme.palette.background.default, 0.5)
+      : alpha(theme.palette.background.paper, 0.8),
+    transition: 'all 0.3s ease',
+    '& fieldset': {
+      borderColor: theme.palette.divider,
+    },
+    '&:hover fieldset': {
+      borderColor: alpha(theme.palette.primary.main, 0.6),
+    },
+    '&.Mui-focused': {
+      backgroundColor: theme.palette.mode === 'dark'
+        ? alpha(theme.palette.background.paper, 0.8)
+        : theme.palette.background.paper,
+      '& fieldset': {
+        borderColor: theme.palette.primary.main,
+        borderWidth: '2px',
+        boxShadow: theme.palette.mode === 'dark'
+          ? `0 0 0 3px ${alpha(theme.palette.primary.main, 0.2)}`
+          : `0 0 0 3px ${alpha(theme.palette.primary.main, 0.1)}`,
+      },
+    },
+    '&.Mui-error': {
+      '& fieldset': {
+        borderColor: theme.palette.error.main,
+      },
+      '&.Mui-focused fieldset': {
+        borderColor: theme.palette.error.main,
+        boxShadow: theme.palette.mode === 'dark'
+          ? `0 0 0 3px ${alpha(theme.palette.error.main, 0.2)}`
+          : `0 0 0 3px ${alpha(theme.palette.error.main, 0.1)}`,
+      },
+    },
+  },
+  '& .MuiInputBase-input': {
+    color: theme.palette.text.primary,
+    '&::placeholder': {
+      color: theme.palette.text.secondary,
+      opacity: 0.8,
+    },
+  },
+  '& .MuiFormHelperText-root': {
+    marginTop: theme.spacing(1),
+    fontSize: '0.875rem',
+    '&.Mui-error': {
+      color: theme.palette.error.main,
+    },
+  },
+}));
+
+const RequiredChip = styled(Chip)(({ theme }) => ({
+  height: 20,
+  fontSize: '0.7rem',
+  marginLeft: theme.spacing(1),
+  backgroundColor: alpha(theme.palette.error.main, 0.1),
+  color: theme.palette.error.main,
+  border: `1px solid ${alpha(theme.palette.error.main, 0.3)}`,
+  '& .MuiChip-label': {
+    fontWeight: 600,
+    padding: theme.spacing(0, 0.5),
+  },
+}));
+
+const HelpIconButton = styled(IconButton)(({ theme }) => ({
+  marginLeft: theme.spacing(0.5),
+  color: theme.palette.text.secondary,
+  transition: 'all 0.2s ease',
+  '&:hover': {
+    color: theme.palette.primary.main,
+    backgroundColor: alpha(theme.palette.primary.main, 0.08),
+    transform: 'scale(1.1)',
+  },
+}));
+
+const StyledDivider = styled(Divider)(({ theme }) => ({
+  margin: theme.spacing(3, 0),
+  borderStyle: 'dashed',
+  borderColor: theme.palette.mode === 'dark' 
+    ? alpha(theme.palette.divider, 0.8)
+    : theme.palette.divider,
+}));
+
+const StyledAlert = styled(Alert)(({ theme }) => ({
+  marginBottom: theme.spacing(3),
+  borderRadius: theme.spacing(1),
+  backgroundColor: theme.palette.mode === 'dark'
+    ? alpha(theme.palette.error.main, 0.1)
+    : alpha(theme.palette.error.main, 0.08),
+  color: theme.palette.text.primary,
+  border: `1px solid ${alpha(theme.palette.error.main, 0.3)}`,
+  '& .MuiAlert-icon': {
+    color: theme.palette.error.main,
+  },
+  '& .MuiAlert-message': {
+    fontWeight: 500,
+    color: theme.palette.text.primary,
+  },
+}));
 
 /**
  * 日付入力コンポーネント
@@ -34,23 +228,33 @@ const DateInput = React.memo(({
   error,
   helpText
 }) => {
+  const theme = useTheme();
   const charactersLeft = 30 - (value?.length || 0);
   const isCalendarType = type === 'calendar';
+
+  // 文字数の色を決定
+  const getCharacterCountColor = () => {
+    if (charactersLeft <= 5) return theme.palette.error.main;
+    if (charactersLeft <= 10) return theme.palette.warning.main;
+    return theme.palette.text.secondary;
+  };
 
   return (
     <Grid item xs={12} md={6}>
       <Box sx={{ mb: 3 }}>
         <Box display="flex" alignItems="center" sx={{ mb: 1 }}>
-          <Typography variant="subtitle1" fontWeight={600}>
+          <Typography 
+            variant="subtitle1" 
+            fontWeight={600}
+            color="text.primary"
+          >
             {label}
           </Typography>
           {isRequired && (
-            <Chip 
+            <RequiredChip 
               label="必須" 
               size="small" 
-              color="error" 
               variant="outlined" 
-              sx={{ ml: 1, height: 20, fontSize: '0.7rem' }} 
             />
           )}
           {helpText && (
@@ -61,18 +265,14 @@ const DateInput = React.memo(({
               enterTouchDelay={0}
               leaveTouchDelay={3000}
             >
-              <IconButton size="small" sx={{ ml: 0.5 }}>
-                <HelpOutlineIcon fontSize="small" color="action" />
-              </IconButton>
+              <HelpIconButton size="small">
+                <HelpOutlineIcon fontSize="small" />
+              </HelpIconButton>
             </Tooltip>
           )}
         </Box>
 
-        <FormControl 
-          fullWidth 
-          variant="outlined"
-          sx={{ mb: 1.5 }}
-        >
+        <StyledFormControl fullWidth variant="outlined">
           <Select
             value={type}
             onChange={(e) => setType(e.target.value)}
@@ -80,25 +280,18 @@ const DateInput = React.memo(({
             size="small"
             startAdornment={
               isCalendarType ? 
-                <EventIcon color="primary" sx={{ mr: 1 }} /> : 
-                <EditIcon color="primary" sx={{ mr: 1 }} />
+                <EventIcon sx={{ color: theme.palette.primary.main, mr: 1 }} /> : 
+                <EditIcon sx={{ color: theme.palette.primary.main, mr: 1 }} />
             }
-            sx={{
-              borderRadius: '8px',
-              backgroundColor: 'rgba(0, 0, 0, 0.02)',
-              '&.Mui-focused': {
-                backgroundColor: 'rgba(0, 0, 0, 0.03)',
-              }
-            }}
           >
             <MenuItem value="calendar">カレンダーから選択</MenuItem>
             <MenuItem value="text">自由入力</MenuItem>
           </Select>
-        </FormControl>
+        </StyledFormControl>
 
         <Fade in={true}>
           {isCalendarType ? (
-            <TextField
+            <StyledTextField
               type="datetime-local"
               fullWidth
               InputLabelProps={{ shrink: true }}
@@ -106,30 +299,20 @@ const DateInput = React.memo(({
               onChange={(e) => setValue(e.target.value)}
               error={isRequired && !value}
               helperText={isRequired && !value ? `${label}は必須です` : ''}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '8px',
-                  transition: 'all 0.2s',
-                  '&:hover fieldset': {
-                    borderColor: theme => theme.palette.primary.light,
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: theme => theme.palette.primary.main,
-                    borderWidth: '2px',
-                  },
-                }
-              }}
               InputProps={{
                 endAdornment: value ? (
                   <InputAdornment position="end">
-                    <CheckCircleIcon color="success" fontSize="small" />
+                    <CheckCircleIcon 
+                      sx={{ color: theme.palette.success.main }} 
+                      fontSize="small" 
+                    />
                   </InputAdornment>
                 ) : null
               }}
             />
           ) : (
             <Box>
-              <TextField
+              <StyledTextField
                 fullWidth
                 placeholder="例: 1月中旬 / 春頃 / 2025年3月予定"
                 value={value}
@@ -137,23 +320,13 @@ const DateInput = React.memo(({
                 inputProps={{ maxLength: 30 }}
                 error={isRequired && !value}
                 helperText={isRequired && !value ? `${label}は必須です` : ''}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '8px',
-                    transition: 'all 0.2s',
-                    '&:hover fieldset': {
-                      borderColor: theme => theme.palette.primary.light,
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: theme => theme.palette.primary.main,
-                      borderWidth: '2px',
-                    },
-                  }
-                }}
                 InputProps={{
                   endAdornment: value ? (
                     <InputAdornment position="end">
-                      <CheckCircleIcon color="success" fontSize="small" />
+                      <CheckCircleIcon 
+                        sx={{ color: theme.palette.success.main }} 
+                        fontSize="small" 
+                      />
                     </InputAdornment>
                   ) : null
                 }}
@@ -167,8 +340,9 @@ const DateInput = React.memo(({
                 <Typography 
                   variant="caption" 
                   sx={{ 
-                    color: charactersLeft <= 5 ? 'error.main' : 'text.secondary',
-                    fontWeight: charactersLeft <= 5 ? 600 : 400
+                    color: getCharacterCountColor(),
+                    fontWeight: charactersLeft <= 5 ? 600 : 400,
+                    transition: 'color 0.2s ease',
                   }}
                 >
                   残り {charactersLeft} 文字
@@ -209,6 +383,7 @@ const DateSection = React.memo(({
   applicationStartDateError,
   applicationEndDateError
 }) => {
+  const theme = useTheme();
   const hasErrors = applicationStartDateError || applicationEndDateError;
 
   return (
@@ -220,80 +395,32 @@ const DateSection = React.memo(({
           mb: 3
         }}
       >
-        <Typography variant="h5" sx={{ 
-          color: 'text.primary',
-          fontWeight: 700,
-          position: 'relative',
-          '&::after': {
-            content: '""',
-            position: 'absolute',
-            bottom: '-8px',
-            left: 0,
-            width: '60px',
-            height: '4px',
-            backgroundColor: theme => theme.palette.primary.main,
-            borderRadius: '2px'
-          }
-        }}>
+        <SectionTitle variant="h5">
           日程設定
-        </Typography>
+        </SectionTitle>
         <Tooltip title="コンテストの各段階の日程を設定します。応募開始日と応募終了日は必須項目です。" arrow>
-          <IconButton size="small" sx={{ ml: 1 }}>
-            <HelpOutlineIcon fontSize="small" color="action" />
-          </IconButton>
+          <HelpIconButton size="small">
+            <HelpOutlineIcon fontSize="small" />
+          </HelpIconButton>
         </Tooltip>
       </Box>
 
       {hasErrors && (
         <Fade in={hasErrors}>
-          <Alert 
-            severity="error" 
-            variant="filled"
-            sx={{ 
-              mb: 3,
-              borderRadius: '8px',
-              '& .MuiAlert-message': {
-                fontWeight: 500
-              }
-            }}
-          >
+          <StyledAlert severity="error" variant="filled">
             応募開始日と応募終了日は必須項目です
-          </Alert>
+          </StyledAlert>
         </Fade>
       )}
 
-      <Paper 
-        elevation={0}
-        sx={{ 
-          p: { xs: 2, sm: 3 }, 
-          mb: 4, 
-          border: '1px solid',
-          borderColor: 'divider',
-          borderRadius: '12px',
-          backgroundColor: '#fff',
-          transition: 'all 0.3s',
-          '&:hover': {
-            boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
-          }
-        }}
-      >
+      <StyledPaper elevation={0}>
         <Box sx={{ mb: 3 }}>
-          <Typography 
+          <SectionLabel 
             variant="h6" 
-            sx={{ 
-              fontWeight: 600, 
-              mb: 2,
-              display: 'inline-flex',
-              alignItems: 'center',
-              backgroundColor: theme => `${theme.palette.primary.main}15`,
-              color: 'primary.main',
-              py: 0.5,
-              px: 1.5,
-              borderRadius: '6px'
-            }}
+            required={true}
           >
             必須の日程
-          </Typography>
+          </SectionLabel>
           <Grid container spacing={3}>
             {/* 応募開始日 */}
             <DateInput
@@ -321,28 +448,15 @@ const DateSection = React.memo(({
           </Grid>
         </Box>
 
-        <Divider sx={{ 
-          my: 3,
-          borderStyle: 'dashed'
-        }} />
+        <StyledDivider />
 
         <Box>
-          <Typography 
+          <SectionLabel 
             variant="h6" 
-            sx={{ 
-              fontWeight: 600, 
-              mb: 2,
-              display: 'inline-flex',
-              alignItems: 'center',
-              backgroundColor: 'rgba(0, 0, 0, 0.04)',
-              color: 'text.secondary',
-              py: 0.5,
-              px: 1.5,
-              borderRadius: '6px'
-            }}
+            required={false}
           >
             任意の日程
-          </Typography>
+          </SectionLabel>
           <Grid container spacing={3}>
             {/* 審査開始日 */}
             <DateInput
@@ -381,9 +495,12 @@ const DateSection = React.memo(({
             />
           </Grid>
         </Box>
-      </Paper>
+      </StyledPaper>
     </>
   );
 });
+
+DateInput.displayName = 'DateInput';
+DateSection.displayName = 'DateSection';
 
 export default DateSection;

@@ -27,6 +27,7 @@ import {
   Fade,
   useTheme
 } from '@mui/material';
+import { styled, alpha } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import PostCard from '../../post/PostCard';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -48,6 +49,200 @@ import LinkIcon from '@mui/icons-material/Link';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import CancelIcon from '@mui/icons-material/Cancel';
 import WorkAnalytics from '../analytics/WorkAnalytics';
+
+// テーマ対応のスタイルコンポーネント
+const EmptyStateContainer = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(4),
+  width: '100%',
+  textAlign: 'center',
+  borderRadius: theme.spacing(2),
+  backgroundColor: theme.palette.mode === 'dark'
+    ? alpha(theme.palette.background.default, 0.5)
+    : alpha(theme.palette.grey[50], 0.8),
+  border: `2px dashed ${theme.palette.divider}`,
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    borderColor: alpha(theme.palette.primary.main, 0.5),
+    backgroundColor: theme.palette.mode === 'dark'
+      ? alpha(theme.palette.primary.main, 0.05)
+      : alpha(theme.palette.primary.main, 0.02),
+  }
+}));
+
+const BulkControlsPaper = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(2),
+  marginBottom: theme.spacing(3),
+  backgroundColor: theme.palette.primary.main,
+  color: theme.palette.primary.contrastText,
+  borderRadius: theme.spacing(2),
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 4px 20px rgba(0, 0, 0, 0.4)'
+    : '0 4px 20px rgba(0, 0, 0, 0.15)',
+}));
+
+const SelectionPaper = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(2),
+  marginBottom: theme.spacing(3),
+  borderRadius: theme.spacing(2),
+  backgroundColor: theme.palette.background.paper,
+  border: `1px solid ${theme.palette.divider}`,
+  transition: 'all 0.2s ease',
+  '&:hover': {
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 4px 15px rgba(0, 0, 0, 0.3)'
+      : '0 4px 15px rgba(0, 0, 0, 0.1)',
+  }
+}));
+
+const WorkCardPaper = styled(Paper)(({ theme, isSelected }) => ({
+  padding: theme.spacing(1.5),
+  marginBottom: theme.spacing(1),
+  borderRadius: theme.spacing(2),
+  backgroundColor: isSelected 
+    ? theme.palette.mode === 'dark'
+      ? alpha(theme.palette.primary.main, 0.1)
+      : alpha(theme.palette.primary.main, 0.05)
+    : theme.palette.background.paper,
+  boxShadow: isSelected 
+    ? theme.palette.mode === 'dark'
+      ? `0 4px 20px ${alpha(theme.palette.primary.main, 0.3)}`
+      : `0 4px 20px ${alpha(theme.palette.primary.main, 0.2)}`
+    : theme.palette.mode === 'dark'
+      ? '0 2px 10px rgba(0, 0, 0, 0.3)'
+      : '0 2px 10px rgba(0, 0, 0, 0.1)',
+  position: 'relative',
+  zIndex: 2,
+  border: isSelected 
+    ? `2px solid ${theme.palette.primary.main}` 
+    : `1px solid ${theme.palette.divider}`,
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 8px 25px rgba(0, 0, 0, 0.4)'
+      : '0 8px 25px rgba(0, 0, 0, 0.15)',
+  }
+}));
+
+const ActionButton = styled(IconButton)(({ theme, isActive }) => ({
+  backgroundColor: isActive 
+    ? alpha(theme.palette.primary.main, 0.9)
+    : alpha(theme.palette.background.paper, 0.95),
+  color: isActive ? theme.palette.primary.contrastText : theme.palette.text.primary,
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 2px 8px rgba(0, 0, 0, 0.3)'
+    : '0 2px 8px rgba(0, 0, 0, 0.15)',
+  transition: 'all 0.2s ease',
+  '&:hover': {
+    backgroundColor: isActive 
+      ? theme.palette.primary.main
+      : theme.palette.background.paper,
+    transform: 'scale(1.1)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 4px 15px rgba(0, 0, 0, 0.4)'
+      : '0 4px 15px rgba(0, 0, 0, 0.2)',
+  },
+}));
+
+const StatBox = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  padding: theme.spacing(0.5),
+  borderRadius: theme.spacing(1),
+  transition: 'all 0.2s ease',
+  '&:hover': {
+    backgroundColor: theme.palette.mode === 'dark'
+      ? alpha(theme.palette.background.paper, 0.1)
+      : alpha(theme.palette.grey[100], 0.8),
+    transform: 'scale(1.05)',
+  },
+}));
+
+const NewPostButton = styled(Button)(({ theme }) => ({
+  borderRadius: theme.spacing(3),
+  padding: theme.spacing(1.2, 3),
+  fontWeight: 600,
+  textTransform: 'none',
+  background: theme.palette.mode === 'dark'
+    ? `linear-gradient(45deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`
+    : `linear-gradient(45deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+  color: theme.palette.primary.contrastText,
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 4px 15px rgba(0, 0, 0, 0.3)'
+    : '0 4px 15px rgba(0, 0, 0, 0.15)',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    transform: 'translateY(-3px)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 8px 25px rgba(0, 0, 0, 0.4)'
+      : '0 8px 25px rgba(0, 0, 0, 0.2)',
+    background: theme.palette.mode === 'dark'
+      ? `linear-gradient(45deg, ${theme.palette.primary.light} 0%, ${theme.palette.secondary.light} 100%)`
+      : `linear-gradient(45deg, ${alpha(theme.palette.primary.main, 0.9)} 0%, ${alpha(theme.palette.secondary.main, 0.9)} 100%)`,
+  },
+}));
+
+const StatusChip = styled(Chip)(({ theme, color }) => {
+  const getStatusColors = () => {
+    switch (color) {
+      case 'success':
+        return {
+          bg: alpha(theme.palette.success.main, 0.1),
+          color: theme.palette.success.main,
+          border: alpha(theme.palette.success.main, 0.3),
+        };
+      case 'warning':
+        return {
+          bg: alpha(theme.palette.warning.main, 0.1),
+          color: theme.palette.warning.main,
+          border: alpha(theme.palette.warning.main, 0.3),
+        };
+      case 'error':
+        return {
+          bg: alpha(theme.palette.error.main, 0.1),
+          color: theme.palette.error.main,
+          border: alpha(theme.palette.error.main, 0.3),
+        };
+      default:
+        return {
+          bg: alpha(theme.palette.primary.main, 0.1),
+          color: theme.palette.primary.main,
+          border: alpha(theme.palette.primary.main, 0.3),
+        };
+    }
+  };
+
+  const colors = getStatusColors();
+  
+  return {
+    backgroundColor: colors.bg,
+    color: colors.color,
+    border: `1px solid ${colors.border}`,
+    fontWeight: 600,
+    fontSize: '0.7rem',
+  };
+});
+
+const CheckboxOverlay = styled(Box)(({ theme }) => ({
+  position: 'absolute',
+  top: 8,
+  left: 8,
+  zIndex: 3,
+  backgroundColor: alpha(theme.palette.background.paper, 0.95),
+  borderRadius: theme.spacing(1),
+  padding: theme.spacing(0.5),
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 2px 8px rgba(0, 0, 0, 0.3)'
+    : '0 2px 8px rgba(0, 0, 0, 0.15)',
+}));
+
+const StyledDialog = styled(Dialog)(({ theme }) => ({
+  '& .MuiDialog-paper': {
+    borderRadius: theme.spacing(2),
+    backgroundColor: theme.palette.background.paper,
+  },
+}));
 
 const WorksList = ({ works = [], onWorkUpdate }) => {
   const navigate = useNavigate();
@@ -212,49 +407,47 @@ const WorksList = ({ works = [], onWorkUpdate }) => {
   };
 
   // 公開状態のラベルとカラーを取得
-const getPublicityStatus = (work) => {
-  switch (work.publicityStatus) {
-    case 'private':
-      return { label: '非公開', color: 'error' };
-    case 'limited':
-      return { label: '限定公開', color: 'warning' };
-    case 'public':
-    default:
-      return { label: '公開', color: 'success' };
-  }
-};
+  const getPublicityStatus = (work) => {
+    switch (work.publicityStatus) {
+      case 'private':
+        return { label: '非公開', color: 'error' };
+      case 'limited':
+        return { label: '限定公開', color: 'warning' };
+      case 'public':
+      default:
+        return { label: '公開', color: 'success' };
+    }
+  };
+
   const allSelected = works.length > 0 && selectedWorks.size === works.length;
   const indeterminate = selectedWorks.size > 0 && selectedWorks.size < works.length;
 
   // 作品がない場合の表示
   if (works.length === 0) {
     return (
-      <Paper 
-        elevation={0} 
-        variant="outlined"
-        sx={{ 
-          padding: 4, 
-          width: '100%', 
-          textAlign: 'center',
-          borderRadius: 2,
-          backgroundColor: 'rgba(0,0,0,0.01)',
-          borderStyle: 'dashed'
-        }}
-      >
-        <DescriptionIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2, opacity: 0.6 }} />
-        <Typography variant="h6" color="text.secondary" gutterBottom>作品がありません</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 500, mx: 'auto', mb: 3 }}>
+      <EmptyStateContainer elevation={0} variant="outlined">
+        <DescriptionIcon 
+          sx={{ 
+            fontSize: 48, 
+            color: 'text.disabled', 
+            mb: 2, 
+            opacity: 0.6 
+          }} 
+        />
+        <Typography variant="h6" color="text.secondary" gutterBottom>
+          作品がありません
+        </Typography>
+        <Typography 
+          variant="body2" 
+          color="text.secondary" 
+          sx={{ maxWidth: 500, mx: 'auto', mb: 3 }}
+        >
           あなたの創作小説を投稿して、読者と共有しましょう。
         </Typography>
-        <Button 
-          variant="contained" 
-          onClick={handleNewPost}
-          startIcon={<LibraryAddIcon />}
-          sx={{ borderRadius: 6, px: 3 }}
-        >
+        <NewPostButton startIcon={<LibraryAddIcon />} onClick={handleNewPost}>
           新しい作品を投稿
-        </Button>
-      </Paper>
+        </NewPostButton>
+      </EmptyStateContainer>
     );
   }
 
@@ -274,17 +467,7 @@ const getPublicityStatus = (work) => {
     <Box sx={{ width: '100%' }}>
       {/* 一括操作コントロール */}
       <Slide direction="down" in={showBulkControls} mountOnEnter unmountOnExit>
-        <Paper 
-          elevation={3} 
-          sx={{ 
-            p: 2, 
-            mb: 3, 
-            bgcolor: 'primary.main', 
-            color: 'primary.contrastText',
-            borderRadius: 2,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-          }}
-        >
+        <BulkControlsPaper elevation={3}>
           <Toolbar sx={{ minHeight: 'auto !important', px: 0, gap: 2 }}>
             <Chip 
               icon={<CheckBoxIcon />}
@@ -342,7 +525,9 @@ const getPublicityStatus = (work) => {
               sx={{ 
                 borderRadius: 2,
                 fontWeight: 'bold',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                boxShadow: theme.palette.mode === 'dark'
+                  ? '0 2px 10px rgba(0, 0, 0, 0.3)'
+                  : '0 2px 10px rgba(0, 0, 0, 0.2)',
               }}
             >
               実行
@@ -361,18 +546,18 @@ const getPublicityStatus = (work) => {
                 borderColor: 'white',
                 borderRadius: 2,
                 '&:hover': {
-                  bgcolor: 'rgba(255,255,255,0.1)'
+                  bgcolor: alpha(theme.palette.common.white, 0.1)
                 }
               }}
             >
               キャンセル
             </Button>
           </Toolbar>
-        </Paper>
+        </BulkControlsPaper>
       </Slide>
 
       {/* 全選択チェックボックス */}
-      <Paper sx={{ p: 2, mb: 3, borderRadius: 2 }} elevation={1}>
+      <SelectionPaper elevation={1}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <FormControlLabel
             control={
@@ -382,11 +567,15 @@ const getPublicityStatus = (work) => {
                 onChange={(e) => handleSelectAll(e.target.checked)}
                 icon={<CheckBoxOutlineBlankIcon />}
                 checkedIcon={<CheckBoxIcon />}
-                sx={{ '& .MuiSvgIcon-root': { fontSize: 20 } }}
+                sx={{ 
+                  '& .MuiSvgIcon-root': { fontSize: 20 },
+                  color: theme.palette.primary.main,
+                  '&.Mui-checked': { color: theme.palette.primary.main },
+                }}
               />
             }
             label={
-              <Typography variant="body2" fontWeight="medium">
+              <Typography variant="body2" fontWeight="medium" color="text.primary">
                 すべて選択 ({works.length}件)
               </Typography>
             }
@@ -398,7 +587,7 @@ const getPublicityStatus = (work) => {
             </Typography>
           )}
         </Box>
-      </Paper>
+      </SelectionPaper>
 
       {workRows.map((row, rowIndex) => (
         <React.Fragment key={`row-${rowIndex}`}>
@@ -424,25 +613,19 @@ const getPublicityStatus = (work) => {
                 <Grid item xs={12} sm={6} md={4} key={work._id}>
                   <Box sx={{ position: 'relative' }}>
                     {/* 選択チェックボックス */}
-                    <Box sx={{ 
-                      position: 'absolute', 
-                      top: 8, 
-                      left: 8, 
-                      zIndex: 3,
-                      bgcolor: 'rgba(255,255,255,0.95)',
-                      borderRadius: 1,
-                      p: 0.5
-                    }}>
+                    <CheckboxOverlay>
                       <Checkbox
                         checked={isSelected}
                         onChange={(e) => handleSelectWork(work._id, e.target.checked)}
                         size="small"
                         sx={{ 
                           p: 0.5,
-                          '& .MuiSvgIcon-root': { fontSize: 18 }
+                          '& .MuiSvgIcon-root': { fontSize: 18 },
+                          color: theme.palette.primary.main,
+                          '&.Mui-checked': { color: theme.palette.primary.main },
                         }}
                       />
-                    </Box>
+                    </CheckboxOverlay>
 
                     {/* 公開状態インジケーター */}
                     <Box sx={{ 
@@ -451,35 +634,15 @@ const getPublicityStatus = (work) => {
                       right: 8, 
                       zIndex: 3
                     }}>
-                      <Chip 
+                      <StatusChip 
                         label={publicityStatus.label} 
                         size="small" 
                         color={publicityStatus.color}
-                        sx={{ 
-                          fontWeight: 'bold',
-                          fontSize: '0.7rem'
-                        }}
                       />
                     </Box>
 
                     {/* 作品統計情報カード */}
-                    <Paper
-                      elevation={isSelected ? 4 : 2}
-                      sx={{
-                        p: 1.5,
-                        mb: 1,
-                        borderRadius: 2,
-                        backgroundColor: isSelected ? 'rgba(25, 118, 210, 0.05)' : 'rgba(255, 255, 255, 0.9)',
-                        boxShadow: isSelected 
-                          ? '0 4px 12px rgba(25, 118, 210, 0.2)' 
-                          : '0 2px 8px rgba(0,0,0,0.1)',
-                        position: 'relative',
-                        zIndex: 2,
-                        border: isSelected ? '2px solid' : '1px solid transparent',
-                        borderColor: isSelected ? 'primary.main' : 'transparent',
-                        transition: 'all 0.2s ease-in-out'
-                      }}
-                    >
+                    <WorkCardPaper elevation={0} isSelected={isSelected}>
                       {/* PostCardコンポーネント */}
                       <Box sx={{ mt: 2 }}>
                         <PostCard post={work} />
@@ -488,7 +651,13 @@ const getPublicityStatus = (work) => {
                       {/* 基本情報 */}
                       <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} mt={1}>
                         <Box display="flex" alignItems="center">
-                          <AccessTimeIcon sx={{ color: 'text.secondary', mr: 0.5, fontSize: 16 }} />
+                          <AccessTimeIcon 
+                            sx={{ 
+                              color: 'text.secondary', 
+                              mr: 0.5, 
+                              fontSize: 16 
+                            }} 
+                          />
                           <Typography variant="caption" color="text.secondary">
                             {formatDate(work.createdAt)}
                           </Typography>
@@ -501,49 +670,69 @@ const getPublicityStatus = (work) => {
                       <Grid container spacing={1}>
                         <Grid item xs={3}>
                           <Tooltip title="閲覧数">
-                            <Box display="flex" flexDirection="column" alignItems="center">
-                              <VisibilityIcon sx={{ color: '#607d8b', fontSize: 18 }} />
-                              <Typography variant="body2" fontWeight="medium">
+                            <StatBox>
+                              <VisibilityIcon 
+                                sx={{ 
+                                  color: theme.palette.mode === 'dark' ? '#90a4ae' : '#607d8b', 
+                                  fontSize: 18 
+                                }} 
+                              />
+                              <Typography variant="body2" fontWeight="medium" color="text.primary">
                                 {work.viewCounter?.toLocaleString() || 0}
                               </Typography>
-                            </Box>
+                            </StatBox>
                           </Tooltip>
                         </Grid>
                         
                         <Grid item xs={3}>
                           <Tooltip title="いいね数">
-                            <Box display="flex" flexDirection="column" alignItems="center">
-                              <FavoriteIcon sx={{ color: '#e91e63', fontSize: 18 }} />
-                              <Typography variant="body2" fontWeight="medium">
+                            <StatBox>
+                              <FavoriteIcon 
+                                sx={{ 
+                                  color: theme.palette.mode === 'dark' ? '#f06292' : '#e91e63', 
+                                  fontSize: 18 
+                                }} 
+                              />
+                              <Typography variant="body2" fontWeight="medium" color="text.primary">
                                 {work.goodCounter?.toLocaleString() || 0}
                               </Typography>
-                            </Box>
+                            </StatBox>
                           </Tooltip>
                         </Grid>
                         
                         <Grid item xs={3}>
                           <Tooltip title="本棚追加数">
-                            <Box display="flex" flexDirection="column" alignItems="center">
-                              <BookmarkIcon sx={{ color: '#ff9800', fontSize: 18 }} />
-                              <Typography variant="body2" fontWeight="medium">
+                            <StatBox>
+                              <BookmarkIcon 
+                                sx={{ 
+                                  color: theme.palette.mode === 'dark' ? '#ffb74d' : '#ff9800', 
+                                  fontSize: 18 
+                                }} 
+                              />
+                              <Typography variant="body2" fontWeight="medium" color="text.primary">
                                 {work.bookShelfCounter?.toLocaleString() || 0}
                               </Typography>
-                            </Box>
+                            </StatBox>
                           </Tooltip>
                         </Grid>
                         
                         <Grid item xs={3}>
                           <Tooltip title="コメント数">
-                            <Box display="flex" flexDirection="column" alignItems="center">
-                              <CommentIcon sx={{ color: '#4caf50', fontSize: 18 }} />
-                              <Typography variant="body2" fontWeight="medium">
+                            <StatBox>
+                              <CommentIcon 
+                                sx={{ 
+                                  color: theme.palette.mode === 'dark' ? '#81c784' : '#4caf50', 
+                                  fontSize: 18 
+                                }} 
+                              />
+                              <Typography variant="body2" fontWeight="medium" color="text.primary">
                                 {getCommentCount(work)}
                               </Typography>
-                            </Box>
+                            </StatBox>
                           </Tooltip>
                         </Grid>
                       </Grid>
-                    </Paper>
+                    </WorkCardPaper>
 
                     {/* アクションボタン（オーバーレイ） */}
                     <Box sx={{ 
@@ -557,43 +746,24 @@ const getPublicityStatus = (work) => {
                     }}>
                       {/* 編集ボタン */}
                       <Tooltip title="作品を編集">
-                        <IconButton
+                        <ActionButton
                           aria-label="edit"
                           onClick={(e) => handleEditClick(work._id, e)}
-                          sx={{
-                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                            '&:hover': {
-                              backgroundColor: 'rgba(255, 255, 255, 1)',
-                              transform: 'scale(1.1)',
-                            },
-                          }}
+                          isActive={false}
                         >
                           <EditIcon color="primary" />
-                        </IconButton>
+                        </ActionButton>
                       </Tooltip>
 
                       {/* アナリティクスボタン */}
                       <Tooltip title="アナリティクスを表示">
-                        <IconButton
+                        <ActionButton
                           aria-label="analytics"
                           onClick={(e) => handleAnalyticsClick(work._id, e)}
-                          sx={{
-                            backgroundColor: selectedWorkForAnalytics === work._id 
-                              ? 'rgba(33, 150, 243, 0.9)' 
-                              : 'rgba(255, 255, 255, 0.9)',
-                            color: selectedWorkForAnalytics === work._id ? 'white' : 'secondary.main',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                            '&:hover': {
-                              backgroundColor: selectedWorkForAnalytics === work._id 
-                                ? 'rgba(33, 150, 243, 1)' 
-                                : 'rgba(255, 255, 255, 1)',
-                              transform: 'scale(1.1)',
-                            },
-                          }}
+                          isActive={selectedWorkForAnalytics === work._id}
                         >
                           <AnalyticsIcon />
-                        </IconButton>
+                        </ActionButton>
                       </Tooltip>
                     </Box>
 
@@ -612,7 +782,13 @@ const getPublicityStatus = (work) => {
                           borderRadius: 2,
                           textTransform: 'none',
                           fontWeight: 'bold',
-                          fontSize: '0.85rem'
+                          fontSize: '0.85rem',
+                          borderColor: theme.palette.primary.main,
+                          color: theme.palette.primary.main,
+                          '&:hover': {
+                            backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                            borderColor: theme.palette.primary.main,
+                          }
                         }}
                       >
                         編集
@@ -628,7 +804,12 @@ const getPublicityStatus = (work) => {
                           borderRadius: 2,
                           textTransform: 'none',
                           fontWeight: 'bold',
-                          fontSize: '0.85rem'
+                          fontSize: '0.85rem',
+                          '&:hover': {
+                            backgroundColor: selectedWorkForAnalytics === work._id 
+                              ? alpha(theme.palette.primary.main, 0.08)
+                              : alpha(theme.palette.secondary.main, 0.08),
+                          }
                         }}
                       >
                         分析
@@ -644,29 +825,13 @@ const getPublicityStatus = (work) => {
       
       {/* 新規作品追加ボタン */}
       <Box textAlign="center" mt={4}>
-        <Button 
-          variant="contained" 
-          color="primary"
-          startIcon={<LibraryAddIcon />}
-          onClick={handleNewPost}
-          sx={{ 
-            borderRadius: 6, 
-            px: 3, 
-            py: 1.2,
-            boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 6px 15px rgba(0,0,0,0.15)',
-            },
-            transition: 'all 0.2s ease'
-          }}
-        >
+        <NewPostButton startIcon={<LibraryAddIcon />} onClick={handleNewPost}>
           新しい作品を投稿
-        </Button>
+        </NewPostButton>
       </Box>
 
       {/* 削除確認ダイアログ */}
-      <Dialog
+      <StyledDialog
         open={confirmDialog.open}
         onClose={() => setConfirmDialog({ open: false, action: '', count: 0 })}
         maxWidth="sm"
@@ -675,15 +840,26 @@ const getPublicityStatus = (work) => {
         <DialogTitle sx={{ pb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <DeleteIcon color="error" />
-            作品の削除確認
+            <Typography variant="h6" color="text.primary">
+              作品の削除確認
+            </Typography>
           </Box>
         </DialogTitle>
         <DialogContent>
-          <Alert severity="error" sx={{ mb: 2 }}>
-            <Typography variant="body1" fontWeight="bold" gutterBottom>
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mb: 2,
+              borderRadius: 1,
+              backgroundColor: theme.palette.mode === 'dark'
+                ? alpha(theme.palette.error.main, 0.1)
+                : alpha(theme.palette.error.main, 0.08),
+            }}
+          >
+            <Typography variant="body1" fontWeight="bold" gutterBottom color="text.primary">
               本当に{confirmDialog.count}件の作品を削除しますか？
             </Typography>
-            <Typography variant="body2">
+            <Typography variant="body2" color="text.secondary">
               削除した作品は復旧できません。<br />
               関連する閲覧分析データも同時に削除されます。
             </Typography>
@@ -709,7 +885,7 @@ const getPublicityStatus = (work) => {
             削除する
           </Button>
         </DialogActions>
-      </Dialog>
+      </StyledDialog>
     </Box>
   );
 };

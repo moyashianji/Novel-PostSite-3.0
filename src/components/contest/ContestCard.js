@@ -14,7 +14,7 @@ import {
   useTheme,
   Paper
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { styled, alpha } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 
 // 必要なアイコンのみインポート
@@ -68,9 +68,20 @@ const StatusBadge = styled(Chip)(({ theme }) => ({
   fontSize: '0.8rem',
   height: 32,
   backgroundColor: theme.palette.mode === 'dark' 
-    ? theme.palette.background.paper
+    ? alpha(theme.palette.background.paper, 0.95)
     : 'rgba(255, 255, 255, 0.95)',
   backdropFilter: 'blur(10px)',
+  color: theme.palette.text.primary,
+  opacity: 1,
+  visibility: 'visible',
+  pointerEvents: 'auto',
+  transition: 'all 0.3s ease',
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 4px 12px rgba(0, 0, 0, 0.3)'
+    : '0 4px 12px rgba(0, 0, 0, 0.15)',
+  '& .MuiChip-icon': {
+    color: 'inherit',
+  },
 }));
 
 const EditButton = styled(IconButton)(({ theme }) => ({
@@ -79,42 +90,116 @@ const EditButton = styled(IconButton)(({ theme }) => ({
   left: 16,
   zIndex: 3,
   backgroundColor: theme.palette.mode === 'dark' 
-    ? 'rgba(0, 0, 0, 0.7)'
+    ? alpha(theme.palette.background.paper, 0.9)
     : 'rgba(255, 255, 255, 0.9)',
   color: theme.palette.text.primary,
   backdropFilter: 'blur(10px)',
+  opacity: 1,
+  visibility: 'visible',
+  pointerEvents: 'auto',
+  transition: 'all 0.3s ease',
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 4px 12px rgba(0, 0, 0, 0.3)'
+    : '0 4px 12px rgba(0, 0, 0, 0.15)',
   '&:hover': { 
     backgroundColor: theme.palette.mode === 'dark' 
-      ? 'rgba(0, 0, 0, 0.9)'
+      ? theme.palette.background.paper
       : 'rgba(255, 255, 255, 1)',
     transform: 'scale(1.1)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 6px 16px rgba(0, 0, 0, 0.4)'
+      : '0 6px 16px rgba(0, 0, 0, 0.2)',
   }
 }));
 
-// タグスタイル関数（テーマ対応）
+// テーマ対応のタグスタイル関数（修正版）
 const getChipStyle = (chiptype, theme) => {
+  // テーマプリセットに基づいた色の取得
+  const getThemeColor = (colorType) => {
+    switch (colorType) {
+      case 'primary':
+        return theme.palette.primary.main;
+      case 'secondary':
+        return theme.palette.secondary.main;
+      case 'info':
+        return theme.palette.info?.main || theme.palette.primary.main;
+      default:
+        return theme.palette.primary.main;
+    }
+  };
+
   const colorMap = {
-    genre: theme?.palette?.primary?.main || '#1976d2',
-    contestTag: theme?.palette?.secondary?.main || '#9c27b0',
-    tag: theme?.palette?.info?.main || '#0288d1'
+    genre: getThemeColor('primary'),
+    contestTag: getThemeColor('secondary'),
+    tag: getThemeColor('info')
   };
   
   const color = colorMap[chiptype] || colorMap.genre;
   
+  // テーマモードに応じた適切な背景色とテキスト色の計算
+  const isDark = theme.palette.mode === 'dark';
+  
+  // 色の明度を計算して、適切なコントラストを確保
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  };
+
+  const getLuminance = (r, g, b) => {
+    const [rs, gs, bs] = [r, g, b].map(c => {
+      c = c / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+  };
+
+  const rgb = hexToRgb(color);
+  const luminance = rgb ? getLuminance(rgb.r, rgb.g, rgb.b) : 0.5;
+  
+  // 背景色とテキスト色の決定
+  const backgroundColor = isDark
+    ? alpha(color, 0.25)
+    : alpha(color, 0.12);
+    
+  const textColor = isDark
+    ? (luminance > 0.5 ? theme.palette.common.black : color)
+    : color;
+
+  const borderColor = isDark
+    ? alpha(color, 0.4)
+    : alpha(color, 0.3);
+
   return {
     margin: '2px',
     borderRadius: 12,
-    backgroundColor: theme.palette.mode === 'dark'
-      ? `${color}33`
-      : `${color}14`,
-    color: color,
-    border: `1px solid ${color}33`,
+    backgroundColor: backgroundColor,
+    color: textColor,
+    border: `1px solid ${borderColor}`,
     fontSize: '0.75rem',
     height: 28,
+    fontWeight: 500,
+    transition: 'all 0.2s ease',
+    '& .MuiChip-icon': {
+      color: textColor,
+    },
     '&:hover': {
       backgroundColor: color,
-      color: theme.palette.mode === 'dark' ? theme.palette.common.black : theme.palette.common.white,
+      color: isDark 
+        ? (luminance > 0.5 ? theme.palette.common.black : theme.palette.common.white)
+        : theme.palette.common.white,
       transform: 'translateY(-1px)',
+      boxShadow: isDark
+        ? `0 4px 12px ${alpha(color, 0.4)}`
+        : `0 4px 12px ${alpha(color, 0.3)}`,
+      '& .MuiChip-icon': {
+        color: isDark 
+          ? (luminance > 0.5 ? theme.palette.common.black : theme.palette.common.white)
+          : theme.palette.common.white,
+      },
     },
   };
 };
@@ -146,17 +231,30 @@ const StatItem = React.memo(({ icon, value, label }) => {
       p: 1, 
       borderRadius: 1, 
       backgroundColor: theme.palette.mode === 'dark'
-        ? theme.palette.action.hover
-        : '#f5f5f5',
+        ? alpha(theme.palette.background.paper, 0.5)
+        : alpha(theme.palette.primary.main, 0.04),
+      border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+      transition: 'all 0.2s ease',
       '&:hover': { 
         backgroundColor: theme.palette.mode === 'dark'
-          ? theme.palette.action.selected
-          : '#e3f2fd'
+          ? alpha(theme.palette.primary.main, 0.1)
+          : alpha(theme.palette.primary.main, 0.08),
+        transform: 'translateY(-1px)',
       }
     }}>
-      {icon}
+      {React.cloneElement(icon, {
+        sx: { 
+          fontSize: 18, 
+          color: theme.palette.primary.main,
+          ...icon.props.sx 
+        }
+      })}
       <Box sx={{ ml: 1 }}>
-        <Typography variant="h6" sx={{ lineHeight: 1, fontWeight: 'bold' }}>
+        <Typography variant="h6" sx={{ 
+          lineHeight: 1, 
+          fontWeight: 'bold',
+          color: theme.palette.text.primary
+        }}>
           {value}
         </Typography>
         <Typography variant="caption" color="text.secondary">
@@ -169,6 +267,7 @@ const StatItem = React.memo(({ icon, value, label }) => {
 
 // メモ化されたタグセクション
 const TagSection = React.memo(({ title, tags, icon, chiptype, onTagClick, compact, maxTags }) => {
+  const theme = useTheme();
   const displayTags = useMemo(() => tags?.slice(0, maxTags) || [], [tags, maxTags]);
   const remainingCount = tags?.length > maxTags ? tags.length - maxTags : 0;
   
@@ -177,7 +276,13 @@ const TagSection = React.memo(({ title, tags, icon, chiptype, onTagClick, compac
   return (
     <Box sx={{ mb: 1.5 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-        {icon}
+        {React.cloneElement(icon, {
+          sx: { 
+            fontSize: 16, 
+            color: theme.palette.text.secondary,
+            ...icon.props.sx 
+          }
+        })}
         <Typography variant="caption" fontWeight="medium" color="text.secondary" sx={{ ml: 0.5 }}>
           {title}
         </Typography>
@@ -188,7 +293,6 @@ const TagSection = React.memo(({ title, tags, icon, chiptype, onTagClick, compac
             key={`${chiptype}-${index}`}
             tag={tag}
             chiptype={chiptype}
-            icon={icon}
             onClick={(e) => onTagClick(tag, e)}
           />
         ))}
@@ -219,14 +323,21 @@ const formatDate = (dateString) => {
   return formatted;
 };
 
-// ステータス設定（従来のMUIカラー使用）
-const getStatusColor = (status) => {
+// ステータス設定（テーマ対応）
+const getStatusColor = (status, theme) => {
+  const isDark = theme.palette.mode === 'dark';
+  
   switch (status) {
-    case '募集中': return 'success';
-    case '開催予定': return 'info';
-    case '募集一時停止中': return 'warning';
-    case '募集終了': return 'default';
-    default: return 'primary';
+    case '募集中': 
+      return isDark ? 'success' : 'success';
+    case '開催予定': 
+      return isDark ? 'info' : 'info';
+    case '募集一時停止中': 
+      return isDark ? 'warning' : 'warning';
+    case '募集終了': 
+      return isDark ? 'default' : 'default';
+    default: 
+      return 'primary';
   }
 };
 
@@ -256,8 +367,8 @@ const ContestCard = ({
   
   // すべてのHooksを条件分岐の前に呼び出す
   const statusColor = useMemo(() => 
-    contest ? getStatusColor(contest.status) : 'primary', 
-    [contest?.status]
+    contest ? getStatusColor(contest.status, theme) : 'primary', 
+    [contest?.status, theme]
   );
   
   const statusIcon = useMemo(() => 
@@ -396,7 +507,7 @@ const ContestCard = ({
         <TagSection
           title="ジャンル"
           tags={contest.genres}
-          icon={<LocalLibraryIcon sx={{ fontSize: 16, color: 'primary.main' }} />}
+          icon={<LocalLibraryIcon />}
           chiptype="genre"
           onTagClick={handleGenreClick}
           compact={compact}
@@ -406,7 +517,7 @@ const ContestCard = ({
         <TagSection
           title="コンテストタグ"
           tags={contest.contestTags}
-          icon={<StyleIcon sx={{ fontSize: 16, color: 'secondary.main' }} />}
+          icon={<StyleIcon />}
           chiptype="contestTag"
           onTagClick={handleContestTagClick}
           compact={compact}
@@ -416,7 +527,7 @@ const ContestCard = ({
         <TagSection
           title="タグ"
           tags={contest.tags}
-          icon={<TagIcon sx={{ fontSize: 16, color: 'info.main' }} />}
+          icon={<TagIcon />}
           chiptype="tag"
           onTagClick={handleTagClick}
           compact={compact}
@@ -427,7 +538,7 @@ const ContestCard = ({
         <Grid container spacing={1.5} sx={{ mt: 1.5, mb: 1.5 }}>
           <Grid item xs={6}>
             <StatItem
-              icon={<GroupsIcon sx={{ fontSize: 18, color: 'primary.main' }} />}
+              icon={<GroupsIcon />}
               value={entriesCount}
               label="応募"
             />
@@ -435,7 +546,7 @@ const ContestCard = ({
           
           <Grid item xs={6}>
             <StatItem
-              icon={<TagIcon sx={{ fontSize: 18, color: 'secondary.main' }} />}
+              icon={<TagIcon />}
               value={totalTags}
               label="総タグ数"
             />
@@ -451,27 +562,39 @@ const ContestCard = ({
               mt: 1.5,
               borderRadius: 2, 
               backgroundColor: theme.palette.mode === 'dark'
-                ? theme.palette.action.hover
-                : '#fafafa',
-              border: `1px solid ${theme.palette.divider}`
+                ? alpha(theme.palette.background.paper, 0.5)
+                : alpha(theme.palette.primary.main, 0.04),
+              border: `1px solid ${alpha(theme.palette.divider, 0.5)}`
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-              <DateRangeIcon sx={{ fontSize: 16, color: 'primary.main', mr: 1 }} />
-              <Typography variant="caption" fontWeight="bold">
+              <DateRangeIcon sx={{ 
+                fontSize: 16, 
+                color: theme.palette.primary.main, 
+                mr: 1 
+              }} />
+              <Typography variant="caption" fontWeight="bold" color="text.primary">
                 応募期間
               </Typography>
             </Box>
             <Box sx={{ pl: 2.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.25 }}>
-                <FiberManualRecordIcon sx={{ fontSize: 6, color: 'success.main', mr: 1 }} />
-                <Typography variant="caption">
+                <FiberManualRecordIcon sx={{ 
+                  fontSize: 6, 
+                  color: theme.palette.success.main, 
+                  mr: 1 
+                }} />
+                <Typography variant="caption" color="text.secondary">
                   開始: {formatDate(contest.applicationStartDate)}
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <FiberManualRecordIcon sx={{ fontSize: 6, color: 'error.main', mr: 1 }} />
-                <Typography variant="caption">
+                <FiberManualRecordIcon sx={{ 
+                  fontSize: 6, 
+                  color: theme.palette.error.main, 
+                  mr: 1 
+                }} />
+                <Typography variant="caption" color="text.secondary">
                   終了: {formatDate(contest.applicationEndDate)}
                 </Typography>
               </Box>
@@ -497,11 +620,17 @@ const ContestCard = ({
             background: theme.palette.mode === 'dark'
               ? `linear-gradient(45deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`
               : `linear-gradient(45deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+            color: theme.palette.mode === 'dark' 
+              ? theme.palette.common.white 
+              : theme.palette.common.white,
             '&:hover': {
               background: theme.palette.mode === 'dark'
                 ? `linear-gradient(45deg, ${theme.palette.primary.light} 0%, ${theme.palette.secondary.light} 100%)`
-                : 'linear-gradient(45deg, #5a67d8 0%, #6b46c1 100%)',
+                : `linear-gradient(45deg, ${alpha(theme.palette.primary.main, 0.8)} 0%, ${alpha(theme.palette.secondary.main, 0.8)} 100%)`,
               transform: 'translateY(-2px)',
+              boxShadow: theme.palette.mode === 'dark'
+                ? `0 8px 25px ${alpha(theme.palette.primary.main, 0.4)}`
+                : `0 8px 25px ${alpha(theme.palette.primary.main, 0.3)}`,
             }
           }}
         >
