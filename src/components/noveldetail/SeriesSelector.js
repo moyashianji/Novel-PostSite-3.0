@@ -14,7 +14,8 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Collapse
+  Collapse,
+  useTheme
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import BookmarksIcon from '@mui/icons-material/Bookmarks';
@@ -27,10 +28,20 @@ const SeriesContainer = styled(Paper)(({ theme }) => ({
   marginTop: theme.spacing(4),
   marginBottom: theme.spacing(4),
   borderRadius: 16,
-  boxShadow: theme.shadows[1],
-  border: '1px solid',
-  borderColor: theme.palette.divider,
-  background: 'linear-gradient(to right, #f8f9fa, #ffffff)',
+  boxShadow: theme.custom?.shadows?.card || (theme.palette.mode === 'dark' 
+    ? '0 4px 20px rgba(0, 0, 0, 0.4)'
+    : '0 4px 20px rgba(0, 0, 0, 0.08)'),
+  border: `1px solid ${theme.palette.divider}`,
+  background: theme.palette.mode === 'dark'
+    ? `linear-gradient(to right, ${theme.palette.background.default}, ${theme.palette.background.paper})`
+    : 'linear-gradient(to right, #f8f9fa, #ffffff)',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    boxShadow: theme.custom?.shadows?.cardHover || (theme.palette.mode === 'dark'
+      ? '0 8px 30px rgba(0, 0, 0, 0.5)'
+      : '0 8px 30px rgba(0, 0, 0, 0.12)'),
+    transform: 'translateY(-2px)',
+  }
 }));
 
 const SeriesTitle = styled(Typography)(({ theme }) => ({
@@ -46,14 +57,55 @@ const StyledFormControl = styled(FormControl)(({ theme }) => ({
   marginBottom: theme.spacing(2),
   '& .MuiOutlinedInput-root': {
     borderRadius: 8,
+    backgroundColor: theme.palette.mode === 'dark' 
+      ? theme.palette.background.default
+      : 'rgba(255, 255, 255, 0.8)',
     '&:hover .MuiOutlinedInput-notchedOutline': {
       borderColor: theme.palette.primary.main,
+    },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: theme.palette.primary.main,
+    },
+  },
+  '& .MuiInputLabel-root': {
+    color: theme.palette.text.secondary,
+    '&.Mui-focused': {
+      color: theme.palette.primary.main,
     },
   },
 }));
 
+const StyledListItem = styled(ListItem)(({ theme }) => ({
+  borderRadius: theme.spacing(1),
+  marginBottom: theme.spacing(1),
+  backgroundColor: theme.palette.mode === 'dark'
+    ? 'rgba(255, 255, 255, 0.02)'
+    : 'rgba(0, 0, 0, 0.02)',
+  transition: 'all 0.2s ease',
+  '&:hover': { 
+    backgroundColor: theme.palette.mode === 'dark'
+      ? 'rgba(255, 255, 255, 0.08)'
+      : 'rgba(0, 0, 0, 0.04)',
+    transform: 'translateX(4px)',
+  }
+}));
+
+const StyledChip = styled(Chip)(({ theme }) => ({
+  fontWeight: 500,
+  borderRadius: theme.spacing(1),
+  transition: 'all 0.2s ease',
+  '&:hover': {
+    transform: 'translateY(-1px)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 4px 8px rgba(0, 0, 0, 0.3)'
+      : '0 4px 8px rgba(0, 0, 0, 0.15)',
+  }
+}));
+
 // For a single series
 const SingleSeriesSelector = ({ seriesTitle, seriesPosts, selectedPostId, handleSeriesChange }) => {
+  const theme = useTheme();
+  
   // APIからのレスポンスを確認するためのデバッグ
   console.log('SingleSeriesSelector:', { seriesTitle, seriesPosts, selectedPostId });
   
@@ -62,12 +114,12 @@ const SingleSeriesSelector = ({ seriesTitle, seriesPosts, selectedPostId, handle
       <SeriesTitle variant="h6">
         <BookmarksIcon sx={{ mr: 1, color: 'primary.main' }} />
         {seriesTitle.title}
-        <Chip 
+        <StyledChip 
           label={`全 ${seriesPosts.length} 話`} 
           size="small" 
           color="primary" 
           variant="outlined"
-          sx={{ ml: 2, fontWeight: 500 }}
+          sx={{ ml: 2 }}
         />
       </SeriesTitle>
       
@@ -79,9 +131,40 @@ const SingleSeriesSelector = ({ seriesTitle, seriesPosts, selectedPostId, handle
           value={selectedPostId}
           onChange={handleSeriesChange}
           label="シリーズの投稿を選択"
+          MenuProps={{
+            PaperProps: {
+              sx: {
+                backgroundColor: theme.palette.background.paper,
+                border: `1px solid ${theme.palette.divider}`,
+                boxShadow: theme.palette.mode === 'dark'
+                  ? '0 8px 30px rgba(0, 0, 0, 0.5)'
+                  : '0 8px 30px rgba(0, 0, 0, 0.12)',
+              }
+            }
+          }}
         >
           {seriesPosts.map((postItem) => (
-            <MenuItem key={postItem._id} value={postItem._id}>
+            <MenuItem 
+              key={postItem._id} 
+              value={postItem._id}
+              sx={{
+                '&:hover': {
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(255, 255, 255, 0.08)'
+                    : 'rgba(0, 0, 0, 0.04)',
+                },
+                '&.Mui-selected': {
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? `${theme.palette.primary.main}40`
+                    : `${theme.palette.primary.main}20`,
+                  '&:hover': {
+                    backgroundColor: theme.palette.mode === 'dark'
+                      ? `${theme.palette.primary.main}60`
+                      : `${theme.palette.primary.main}30`,
+                  }
+                }
+              }}
+            >
               {`${postItem.episodeNumber || '番外編'}: ${postItem.title}`}
             </MenuItem>
           ))}
@@ -93,6 +176,8 @@ const SingleSeriesSelector = ({ seriesTitle, seriesPosts, selectedPostId, handle
 
 // For multiple series - すべて表示する新しいコンポーネント
 const AllSeriesSelector = ({ seriesData, selectedPostId, handleSeriesChange }) => {
+  const theme = useTheme();
+  
   // デバッグ用のログ
   console.log('AllSeriesSelector:', { seriesData, selectedPostId });
   
@@ -145,48 +230,74 @@ const AllSeriesSelector = ({ seriesData, selectedPostId, handleSeriesChange }) =
     <>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
         <CollectionsBookmarkIcon sx={{ mr: 1, color: 'primary.main' }} />
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
           複数のシリーズ
         </Typography>
         <Tooltip title="この小説は複数のシリーズに含まれています">
-          <Chip 
+          <StyledChip 
             label={`${seriesData.length}シリーズ`} 
             size="small" 
             color="secondary" 
             variant="outlined"
-            sx={{ ml: 2, fontWeight: 500 }}
+            sx={{ ml: 2 }}
           />
         </Tooltip>
       </Box>
 
       <Divider sx={{ mb: 2 }} />
       
-      <List sx={{ width: '100%', bgcolor: 'background.paper', p: 0 }}>
-        {seriesData.map((series) => (
+      <List sx={{ 
+        width: '100%', 
+        bgcolor: 'transparent', 
+        p: 0 
+      }}>
+        {seriesData.map((series, index) => (
           <React.Fragment key={series.seriesId}>
-            <ListItem 
+            <StyledListItem 
               button 
               onClick={() => handleToggle(series.seriesId)}
-              sx={{ 
-                borderRadius: 1, 
-                mb: 1,
-                '&:hover': { 
-                  bgcolor: 'rgba(0, 0, 0, 0.04)'
-                }
-              }}
             >
               <ListItemIcon>
                 <BookmarksIcon color="primary" />
               </ListItemIcon>
               <ListItemText 
-                primary={series.seriesTitle.title} 
-                secondary={`全 ${series.seriesPosts.length} 話`}
+                primary={
+                  <Typography 
+                    variant="subtitle1" 
+                    sx={{ 
+                      fontWeight: 500,
+                      color: 'text.primary' 
+                    }}
+                  >
+                    {series.seriesTitle.title}
+                  </Typography>
+                } 
+                secondary={
+                  <Typography 
+                    variant="body2" 
+                    sx={{ color: 'text.secondary' }}
+                  >
+                    全 {series.seriesPosts.length} 話
+                  </Typography>
+                }
               />
-              {openSeries[series.seriesId] ? <ExpandLess /> : <ExpandMore />}
-            </ListItem>
+              {openSeries[series.seriesId] ? 
+                <ExpandLess sx={{ color: 'text.secondary' }} /> : 
+                <ExpandMore sx={{ color: 'text.secondary' }} />
+              }
+            </StyledListItem>
             
             <Collapse in={openSeries[series.seriesId]} timeout="auto" unmountOnExit>
-              <Box sx={{ pl: 4, pr: 2 }}>
+              <Box sx={{ 
+                pl: 4, 
+                pr: 2,
+                backgroundColor: theme.palette.mode === 'dark'
+                  ? 'rgba(0, 0, 0, 0.2)'
+                  : 'rgba(0, 0, 0, 0.02)',
+                borderRadius: 1,
+                mx: 1,
+                mb: 1
+              }}>
                 <StyledFormControl fullWidth>
                   <InputLabel id={`series-select-label-${series.seriesId}`}>
                     {series.seriesTitle.title}の投稿を選択
@@ -197,9 +308,40 @@ const AllSeriesSelector = ({ seriesData, selectedPostId, handleSeriesChange }) =
                     value={selectedPostId}
                     onChange={(e) => handleSeriesChange(e, series.seriesId)}
                     label={`${series.seriesTitle.title}の投稿を選択`}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          backgroundColor: theme.palette.background.paper,
+                          border: `1px solid ${theme.palette.divider}`,
+                          boxShadow: theme.palette.mode === 'dark'
+                            ? '0 8px 30px rgba(0, 0, 0, 0.5)'
+                            : '0 8px 30px rgba(0, 0, 0, 0.12)',
+                        }
+                      }
+                    }}
                   >
                     {series.seriesPosts.map((postItem) => (
-                      <MenuItem key={postItem._id} value={postItem._id}>
+                      <MenuItem 
+                        key={postItem._id} 
+                        value={postItem._id}
+                        sx={{
+                          '&:hover': {
+                            backgroundColor: theme.palette.mode === 'dark'
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(0, 0, 0, 0.04)',
+                          },
+                          '&.Mui-selected': {
+                            backgroundColor: theme.palette.mode === 'dark'
+                              ? `${theme.palette.primary.main}40`
+                              : `${theme.palette.primary.main}20`,
+                            '&:hover': {
+                              backgroundColor: theme.palette.mode === 'dark'
+                                ? `${theme.palette.primary.main}60`
+                                : `${theme.palette.primary.main}30`,
+                            }
+                          }
+                        }}
+                      >
                         {`${postItem.episodeNumber || '番外編'}: ${postItem.title}`}
                       </MenuItem>
                     ))}
@@ -208,7 +350,7 @@ const AllSeriesSelector = ({ seriesData, selectedPostId, handleSeriesChange }) =
               </Box>
             </Collapse>
             
-            <Divider sx={{ my: 1 }} />
+            {index < seriesData.length - 1 && <Divider sx={{ my: 1 }} />}
           </React.Fragment>
         ))}
       </List>

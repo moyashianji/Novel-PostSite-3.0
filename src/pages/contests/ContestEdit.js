@@ -17,15 +17,132 @@ import {
   Select,
   FormControl,
   InputLabel,
+  Card,
+  CardContent,
+  Divider,
+  Stack,
+  Container,
+  Breadcrumbs,
+  Link as MuiLink,
 } from '@mui/material';
+import { styled, useTheme, alpha } from '@mui/material/styles';
+import { Link } from 'react-router-dom';
 import 'react-quill/dist/quill.snow.css';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import PreviewIcon from '@mui/icons-material/Preview';
+import SaveIcon from '@mui/icons-material/Save';
+import HomeIcon from '@mui/icons-material/Home';
+import EditIcon from '@mui/icons-material/Edit';
+import ImageIcon from '@mui/icons-material/Image';
+import ScheduleIcon from '@mui/icons-material/Schedule';
+import SettingsIcon from '@mui/icons-material/Settings';
 import CustomEditor from '../../components/wysiwyg/CustomEditor';
+
+// Styled Components with theme support
+const PageContainer = styled(Container)(({ theme }) => ({
+  paddingTop: theme.spacing(3),
+  paddingBottom: theme.spacing(6),
+  maxWidth: '1200px',
+}));
+
+const StyledCard = styled(Card)(({ theme }) => ({
+  borderRadius: theme.spacing(2),
+  marginBottom: theme.spacing(3),
+  boxShadow: theme.palette.mode === 'dark' 
+    ? '0 4px 20px rgba(0, 0, 0, 0.4)' 
+    : '0 4px 20px rgba(0, 0, 0, 0.08)',
+  border: `1px solid ${theme.palette.divider}`,
+  transition: 'all 0.3s ease',
+  backgroundColor: theme.palette.background.paper,
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 8px 30px rgba(0, 0, 0, 0.5)'
+      : '0 8px 30px rgba(0, 0, 0, 0.12)',
+  },
+}));
+
+const SectionHeader = styled(Box)(({ theme, color = 'primary' }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  padding: theme.spacing(2.5, 3),
+  backgroundColor: alpha(theme.palette[color].main, 0.1),
+  borderBottom: `1px solid ${theme.palette.divider}`,
+  borderRadius: `${theme.spacing(2)} ${theme.spacing(2)} 0 0`,
+}));
+
+const SectionContent = styled(CardContent)(({ theme }) => ({
+  padding: theme.spacing(3),
+  '&:last-child': {
+    paddingBottom: theme.spacing(3),
+  },
+}));
+
+const ImageUploadBox = styled(Box)(({ theme }) => ({
+  border: `2px dashed ${theme.palette.divider}`,
+  borderRadius: theme.spacing(2),
+  padding: theme.spacing(3),
+  textAlign: 'center',
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
+  backgroundColor: alpha(theme.palette.primary.main, 0.02),
+  '&:hover': {
+    borderColor: theme.palette.primary.main,
+    backgroundColor: alpha(theme.palette.primary.main, 0.08),
+  },
+}));
+
+const PreviewImage = styled('img')(({ theme }) => ({
+  maxWidth: '100%',
+  maxHeight: 200,
+  borderRadius: theme.spacing(1),
+  objectFit: 'cover',
+  border: `1px solid ${theme.palette.divider}`,
+}));
+
+const TagContainer = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: theme.spacing(1),
+  marginTop: theme.spacing(1),
+}));
+
+const JudgeCard = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(1.5),
+  display: 'flex',
+  alignItems: 'center',
+  gap: theme.spacing(1.5),
+  marginBottom: theme.spacing(1),
+  borderRadius: theme.spacing(1),
+  backgroundColor: alpha(theme.palette.primary.main, 0.05),
+  border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+}));
+
+const CharacterCount = styled(Typography)(({ theme, isOver }) => ({
+  fontSize: '0.875rem',
+  color: isOver ? theme.palette.error.main : theme.palette.text.secondary,
+  textAlign: 'right',
+  marginTop: theme.spacing(0.5),
+}));
+
+const ActionButton = styled(Button)(({ theme }) => ({
+  borderRadius: 50,
+  padding: `${theme.spacing(1.5)} ${theme.spacing(3)}`,
+  fontWeight: 'bold',
+  textTransform: 'none',
+  transition: 'all 0.2s ease',
+  '&:hover': {
+    transform: 'translateY(-1px)',
+  },
+}));
 
 const ContestEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const theme = useTheme();
+  
+  // State declarations
   const [title, setTitle] = useState('');
   const [shortDescription, setShortDescription] = useState('');
   const [description, setDescription] = useState('');
@@ -70,6 +187,7 @@ const ContestEdit = () => {
 
   const isValidObjectId = (id) => /^[a-fA-F0-9]{24}$/.test(id);
 
+  // Fetch contest data
   useEffect(() => {
     const fetchContest = async () => {
       try {
@@ -115,6 +233,7 @@ const ContestEdit = () => {
     fetchContest();
   }, [id]);
 
+  // Fetch user info
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
@@ -133,15 +252,13 @@ const ContestEdit = () => {
     fetchUserInfo();
   }, []);
 
-
-
+  // Utility functions
   const handleImageUpload = useCallback((event, type) => {
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const base64String = e.target.result;
-
         if (type === 'icon') {
           setIconImage(file);
           setIconPreview(base64String);
@@ -160,7 +277,6 @@ const ContestEdit = () => {
       const response = await fetch(`/api/users/${id}`);
       if (!response.ok) throw new Error('ユーザーが見つかりません');
       const data = await response.json();
-
       return { id, name: data.nickname, avatar: data.icon };
     } catch (error) {
       console.error('Error fetching judge:', error);
@@ -170,14 +286,7 @@ const ContestEdit = () => {
       setLoadingJudge(false);
     }
   }, []);
-  useEffect(() => {
-    const fetchJudges = async () => {
-      const judgeInfos = await Promise.all(judges.map(judge => fetchJudgeInfo(judge.id)));
-      setJudges(judgeInfos.filter(judge => judge !== null));
-    };
 
-    fetchJudges();
-  }, [fetchJudgeInfo]);
   const handleAddJudge = useCallback(async () => {
     if (!judgeId) {
       alert('審査員のアカウントIDを入力してください');
@@ -260,11 +369,9 @@ const ContestEdit = () => {
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-
         canvas.width = img.width;
         canvas.height = img.height;
         ctx.drawImage(img, 0, 0);
-
         canvas.toBlob((blob) => {
           resolve(blob);
         }, 'image/webp', 0.8);
@@ -273,7 +380,7 @@ const ContestEdit = () => {
   }, []);
 
   const convertWebPToBase64 = useCallback(async (html) => {
-    const matches = html.match(/<img src="http:\/\/localhost:5000\/uploads\/(.*?)"/g) || [];
+    const matches = html.match(/<img[^>]+src="([^"]+)"[^>]*>/g) || [];
     const base64Images = await Promise.all(matches.map(async (match) => {
       const url = match.match(/src="(.*?)"/)[1];
       const response = await fetch(url);
@@ -288,7 +395,7 @@ const ContestEdit = () => {
     }));
     let updatedHtml = html;
     matches.forEach((match, index) => {
-      updatedHtml = updatedHtml.replace(match, `<img src="${base64Images[index]}"`);
+      updatedHtml = updatedHtml.replace(match, `<img src="${base64Images[index]}" />`);
     });
     return updatedHtml;
   }, []);
@@ -357,9 +464,7 @@ const ContestEdit = () => {
     formData.append('minEntries', minEntries);
     formData.append('maxEntries', maxEntries);
     formData.append('status', status);
-    console.log(title)
-    console.log(shortDescription)
-    console.log(updatedDescription)
+
     setLoading(true);
 
     try {
@@ -370,7 +475,7 @@ const ContestEdit = () => {
       });
 
       if (response.ok) {
-        alert('コンテストが更新されました！');
+        alert('コンテストが更新されました!');
         navigate('/contests');
       } else {
         const errorData = await response.json();
@@ -383,48 +488,52 @@ const ContestEdit = () => {
       setLoading(false);
     }
   }, [
-    id,
-    title,
-    shortDescription,
-    description,
-    iconImage,
-    headerImage,
-    applicationStartDate,
-    applicationEndDate,
-    reviewStartDate,
-    reviewEndDate,
-    resultAnnouncementDate,
-    enableJudges,
-    judges,
-    allowFinishedWorks,
-    allowPreStartDate,
-    restrictAI,
-    aiTags,
-    allowR18,
-    restrictGenres,
-    genres,
-    restrictWordCount,
-    minWordCount,
-    maxWordCount,
-    allowSeries,
-    minEntries,
-    maxEntries,
-    status,
-    extractBase64Images,
-    uploadBase64Image,
-    validateForm,
-    navigate,
+    id, title, shortDescription, description, iconImage, headerImage,
+    applicationStartDate, applicationEndDate, reviewStartDate, reviewEndDate,
+    resultAnnouncementDate, enableJudges, judges, allowFinishedWorks,
+    allowPreStartDate, restrictAI, aiTags, allowR18, restrictGenres, genres,
+    restrictWordCount, minWordCount, maxWordCount, allowSeries, minEntries,
+    maxEntries, status, extractBase64Images, uploadBase64Image, validateForm, navigate,
   ]);
 
-  const characterCountDisplay = useMemo(() => (current, max) => (
-    <Typography variant="caption" sx={{ color: '#555' }}>{`${current} / ${max}`}</Typography>
-  ), []);
+  const handlePreview = useCallback(() => {
+    if (!user) {
+      alert('ユーザー情報が取得できませんでした。ログインしていますか?');
+      return;
+    }
+    const previewData = {
+      title, shortDescription, description, applicationStartDate, applicationEndDate,
+      reviewStartDate, reviewEndDate, resultAnnouncementDate, enableJudges,
+      judges: judges.map(judge => ({
+        userId: { _id: judge.id, nickname: judge.name, icon: judge.avatar }
+      })),
+      creator: { _id: user._id, nickname: user.nickname, icon: user.icon },
+      entries: [], status: status, headerImage: headerPreview,
+      allowFinishedWorks, allowPreStartDate, allowR18, allowSeries,
+      restrictGenres, genres: restrictGenres ? genres : [],
+      restrictAI, aiTags: restrictAI ? aiTags : [],
+      minWordCount, maxWordCount, minEntries,
+    };
+
+    sessionStorage.setItem('contestPreviewData', JSON.stringify(previewData));
+    window.open('/contest-preview', '_blank');
+  }, [
+    user, title, shortDescription, description, applicationStartDate, applicationEndDate,
+    reviewStartDate, reviewEndDate, resultAnnouncementDate, enableJudges, judges,
+    status, headerPreview, allowFinishedWorks, allowPreStartDate, allowR18,
+    allowSeries, restrictGenres, genres, restrictAI, aiTags, minWordCount,
+    maxWordCount, minEntries
+  ]);
 
   const renderDateInput = useCallback((label, value, setValue, type, setType, isRequired) => (
-    <Grid item xs={12} md={6}>
-      <FormControl fullWidth>
-        <InputLabel>{label}</InputLabel>
-        <Select value={type} onChange={(e) => setType(e.target.value)}>
+    <Box>
+      <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+        <ScheduleIcon sx={{ mr: 1, fontSize: 18 }} />
+        {label}
+        {isRequired && <Typography color="error" sx={{ ml: 0.5 }}>*</Typography>}
+      </Typography>
+      <FormControl fullWidth sx={{ mb: 1 }}>
+        <Select value={type} onChange={(e) => setType(e.target.value)} size="small">
           <MenuItem value="calendar">カレンダーから選択</MenuItem>
           <MenuItem value="text">自由入力</MenuItem>
         </Select>
@@ -432,909 +541,521 @@ const ContestEdit = () => {
       {type === 'calendar' ? (
         <TextField
           type="datetime-local"
-          fullWidth
-          InputLabelProps={{ shrink: true }}
           value={value}
           onChange={(e) => setValue(e.target.value)}
+          fullWidth
           error={isRequired && !value}
           helperText={isRequired && !value ? `${label}は必須です` : ''}
+          size="small"
         />
       ) : (
         <Box>
           <TextField
-            fullWidth
-            placeholder="例: 1月中旬 / 春頃 / 2025年3月予定"
+            placeholder={`${label}を入力`}
             value={value}
             onChange={(e) => setValue(e.target.value)}
+            fullWidth
             inputProps={{ maxLength: 30 }}
             error={isRequired && !value}
             helperText={isRequired && !value ? `${label}は必須です` : ''}
+            size="small"
           />
-          <Typography variant="caption" sx={{ color: '#555' }}>
+          <CharacterCount isOver={value.length > 30}>
             {value.length} / 30
-          </Typography>
+          </CharacterCount>
         </Box>
       )}
-    </Grid>
+    </Box>
   ), []);
 
-  const handlePreview = useCallback(() => {
-    if (!user) {
-      alert('ユーザー情報が取得できませんでした。ログインしていますか？');
-      return;
-    }
-    const previewData = {
-      title,
-      shortDescription,
-      description,
-      applicationStartDate,
-      applicationEndDate,
-      reviewStartDate,
-      reviewEndDate,
-      resultAnnouncementDate,
-      enableJudges,
-      judges: judges.map(judge => ({
-        userId: { _id: judge.id, nickname: judge.name, icon: judge.avatar }
-      })),
-      creator: {
-        _id: user._id,
-        nickname: user.nickname,
-        icon: user.icon
-      },
-      entries: [],
-      status: status,
-      headerImage: headerPreview,
-      allowFinishedWorks: allowFinishedWorks,
-      allowPreStartDate: allowPreStartDate,
-      allowR18: allowR18,
-      allowSeries: allowSeries,
-      restrictGenres: restrictGenres,
-      genres: restrictGenres ? genres : [],
-      restrictAI: restrictAI,
-      aiTags: restrictAI ? aiTags : [],
-      minWordCount: minWordCount,
-      maxWordCount: maxWordCount,
-      minEntries: minEntries,
-    };
-
-    sessionStorage.setItem('contestPreviewData', JSON.stringify(previewData));
-    window.open('/contest-preview', '_blank');
-  }, [
-    user,
-    title,
-    shortDescription,
-    description,
-    applicationStartDate,
-    applicationEndDate,
-    reviewStartDate,
-    reviewEndDate,
-    resultAnnouncementDate,
-    enableJudges,
-    judges,
-    status,
-    headerPreview,
-    allowFinishedWorks,
-    allowPreStartDate,
-    allowR18,
-    allowSeries,
-    restrictGenres,
-    genres,
-    restrictAI,
-    aiTags,
-    minWordCount,
-    maxWordCount,
-    minEntries
-  ]);
-
-  const handleTitleChange = useCallback((e) => {
-    setTitle(e.target.value);
-  }, []);
-
-  const handleShortDescriptionChange = useCallback((e) => {
-    setShortDescription(e.target.value);
-  }, []);
-
-  const handleDescriptionChange = useCallback((value) => {
-    setDescription(value);
-  }, []);
-
   return (
-    <Box
-      sx={{
-        padding: 4,
-        backgroundColor: '#f5f5f5',
-        borderRadius: 4,
-        maxWidth: '1200px',
-        margin: '0 auto',
-        boxShadow: '0px 4px 12px rgba(0,0,0,0.1)',
-      }}
-    >
-      <Typography variant="h4" gutterBottom sx={{ textAlign: 'center', color: '#333' }}>
-        コンテスト編集
-      </Typography>
-      <Grid container spacing={3}>
-        <ContestInfo
-          title={title}
-          handleTitleChange={handleTitleChange}
-          characterCountDisplay={characterCountDisplay}
-        />
-        <ShortDescription
-          shortDescription={shortDescription}
-          handleShortDescriptionChange={handleShortDescriptionChange}
-          characterCountDisplay={characterCountDisplay}
-        />
-        <DetailedDescription
-          description={description}
-          handleDescriptionChange={handleDescriptionChange}
-        />
-        <ContestImages
-          iconPreview={iconPreview}
-          headerPreview={headerPreview}
-          handleImageUpload={handleImageUpload}
-        />
-        <DateSettings
-          applicationStartDate={applicationStartDate}
-          setApplicationStartDate={setApplicationStartDate}
-          applicationEndDate={applicationEndDate}
-          setApplicationEndDate={setApplicationEndDate}
-          reviewStartDate={reviewStartDate}
-          setReviewStartDate={setReviewStartDate}
-          reviewEndDate={reviewEndDate}
-          setReviewEndDate={setReviewEndDate}
-          resultAnnouncementDate={resultAnnouncementDate}
-          setResultAnnouncementDate={setResultAnnouncementDate}
-          applicationStartDateType={applicationStartDateType}
-          setApplicationStartDateType={setApplicationStartDateType}
-          applicationEndDateType={applicationEndDateType}
-          setApplicationEndDateType={setApplicationEndDateType}
-          reviewStartDateType={reviewStartDateType}
-          setReviewStartDateType={setReviewStartDateType}
-          reviewEndDateType={reviewEndDateType}
-          setReviewEndDateType={setReviewEndDateType}
-          resultAnnouncementDateType={resultAnnouncementDateType}
-          setResultAnnouncementDateType={setResultAnnouncementDateType}
-          renderDateInput={renderDateInput}
-        />
-        <DetailedSettings
-          enableJudges={enableJudges}
-          setEnableJudges={setEnableJudges}
-          judgeId={judgeId}
-          setJudgeId={setJudgeId}
-          isValidObjectId={isValidObjectId}
-          handleAddJudge={handleAddJudge}
-          loadingJudge={loadingJudge}
-          judges={judges}
-          handleRemoveJudge={handleRemoveJudge}
-        />
-        <OtherSettings
-          allowFinishedWorks={allowFinishedWorks}
-          setAllowFinishedWorks={setAllowFinishedWorks}
-          allowPreStartDate={allowPreStartDate}
-          setAllowPreStartDate={setAllowPreStartDate}
-          restrictAI={restrictAI}
-          setRestrictAI={setRestrictAI}
-          aiTagInput={aiTagInput}
-          setAiTagInput={setAiTagInput}
-          handleAddAiTag={handleAddAiTag}
-          aiTags={aiTags}
-          handleRemoveAiTag={handleRemoveAiTag}
-          allowR18={allowR18}
-          setAllowR18={setAllowR18}
-          restrictGenres={restrictGenres}
-          setRestrictGenres={setRestrictGenres}
-          genreInput={genreInput}
-          setGenreInput={setGenreInput}
-          handleAddGenre={handleAddGenre}
-          genres={genres}
-          handleRemoveGenre={handleRemoveGenre}
-          restrictWordCount={restrictWordCount}
-          setRestrictWordCount={setRestrictWordCount}
-          minWordCount={minWordCount}
-          setMinWordCount={setMinWordCount}
-          maxWordCount={maxWordCount}
-          setMaxWordCount={setMaxWordCount}
-          allowSeries={allowSeries}
-          setAllowSeries={setAllowSeries}
-          minEntries={minEntries}
-          setMinEntries={setMinEntries}
-          maxEntries={maxEntries}
-          setMaxEntries={setMaxEntries}
-        />
-        <ContestStatus
-          status={status}
-          setStatus={setStatus}
-        />
-        <PreviewButton
-          handlePreview={handlePreview}
-        />
-        <SubmitButton
-          handleSubmit={handleSubmit}
-          loading={loading}
-        />
-      </Grid>
-    </Box>
+    <PageContainer>
+      {/* Header */}
+      <Box sx={{ mb: 4 }}>
+        <Breadcrumbs sx={{ mb: 2 }}>
+          <MuiLink component={Link} to="/" sx={{ display: 'flex', alignItems: 'center' }}>
+            <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
+            ホーム
+          </MuiLink>
+          <MuiLink component={Link} to="/contests" sx={{ display: 'flex', alignItems: 'center' }}>
+            コンテスト
+          </MuiLink>
+          <Typography color="text.primary">編集</Typography>
+        </Breadcrumbs>
+        <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom>
+          <EditIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+          コンテスト編集
+        </Typography>
+      </Box>
+
+      {/* Basic Information */}
+      <StyledCard>
+        <SectionHeader color="primary">
+          <Box sx={{ mr: 2 }}>
+            <EditIcon color="primary" />
+          </Box>
+          <Typography variant="h6" fontWeight="bold">
+            基本情報
+          </Typography>
+        </SectionHeader>
+        <SectionContent>
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" gutterBottom>
+                コンテストタイトル <Typography component="span" color="error">*</Typography>
+              </Typography>
+              <TextField
+                placeholder="魅力的なコンテストタイトルを入力してください"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                fullWidth
+                inputProps={{ maxLength: 50 }}
+                error={!title}
+                helperText={!title ? 'タイトルは必須です' : ''}
+              />
+              <CharacterCount isOver={title.length > 50}>
+                {title.length} / 50
+              </CharacterCount>
+            </Grid>
+            
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" gutterBottom>
+                短い説明 <Typography component="span" color="error">*</Typography>
+              </Typography>
+              <TextField
+                placeholder="コンテストの概要を簡潔に説明してください"
+                value={shortDescription}
+                onChange={(e) => setShortDescription(e.target.value)}
+                fullWidth
+                multiline
+                rows={2}
+                inputProps={{ maxLength: 100 }}
+                error={!shortDescription}
+                helperText={!shortDescription ? '短い説明は必須です' : ''}
+              />
+              <CharacterCount isOver={shortDescription.length > 100}>
+                {shortDescription.length} / 100
+              </CharacterCount>
+            </Grid>
+
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" gutterBottom>
+                詳細説明 <Typography component="span" color="error">*</Typography>
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                コンテスト概要、募集ジャンル、賞、賞金等、応募資格、応募方法、スケジュール、選考方法、規約など必要な情報を詳細に記載してください
+              </Typography>
+              <Box sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
+                <CustomEditor
+                  value={description}
+                  onChange={setDescription}
+                  placeholder="詳細説明を入力してください..."
+                />
+              </Box>
+            </Grid>
+          </Grid>
+        </SectionContent>
+      </StyledCard>
+
+      {/* Images */}
+      <StyledCard>
+        <SectionHeader color="info">
+          <Box sx={{ mr: 2 }}>
+            <ImageIcon color="info" />
+          </Box>
+          <Typography variant="h6" fontWeight="bold">
+            画像設定
+          </Typography>
+        </SectionHeader>
+        <SectionContent>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <Typography variant="subtitle2" gutterBottom>
+                アイコン画像
+              </Typography>
+              <input
+                accept="image/*"
+                style={{ display: 'none' }}
+                id="icon-upload"
+                type="file"
+                onChange={(e) => handleImageUpload(e, 'icon')}
+              />
+              <label htmlFor="icon-upload">
+                <ImageUploadBox>
+                  {iconPreview ? (
+                    <PreviewImage src={iconPreview} alt="アイコンプレビュー" />
+                  ) : (
+                    <Box>
+                      <ImageIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
+                      <Typography variant="body2" color="text.secondary">
+                        クリックして画像をアップロード
+                      </Typography>
+                    </Box>
+                  )}
+                </ImageUploadBox>
+              </label>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Typography variant="subtitle2" gutterBottom>
+                ヘッダー画像
+              </Typography>
+              <input
+                accept="image/*"
+                style={{ display: 'none' }}
+                id="header-upload"
+                type="file"
+                onChange={(e) => handleImageUpload(e, 'header')}
+              />
+              <label htmlFor="header-upload">
+                <ImageUploadBox>
+                  {headerPreview ? (
+                    <PreviewImage src={headerPreview} alt="ヘッダープレビュー" />
+                  ) : (
+                    <Box>
+                      <ImageIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
+                      <Typography variant="body2" color="text.secondary">
+                        クリックして画像をアップロード
+                      </Typography>
+                    </Box>
+                  )}
+                </ImageUploadBox>
+              </label>
+            </Grid>
+          </Grid>
+        </SectionContent>
+      </StyledCard>
+
+      {/* Schedule */}
+      <StyledCard>
+        <SectionHeader color="warning">
+          <Box sx={{ mr: 2 }}>
+            <ScheduleIcon color="warning" />
+          </Box>
+          <Typography variant="h6" fontWeight="bold">
+            日程設定
+          </Typography>
+        </SectionHeader>
+        <SectionContent>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              {renderDateInput('応募開始日', applicationStartDate, setApplicationStartDate, applicationStartDateType, setApplicationStartDateType, true)}
+            </Grid>
+            <Grid item xs={12} md={6}>
+              {renderDateInput('応募終了日', applicationEndDate, setApplicationEndDate, applicationEndDateType, setApplicationEndDateType, true)}
+            </Grid>
+            <Grid item xs={12} md={6}>
+              {renderDateInput('審査開始日', reviewStartDate, setReviewStartDate, reviewStartDateType, setReviewStartDateType, false)}
+            </Grid>
+            <Grid item xs={12} md={6}>
+              {renderDateInput('審査終了日', reviewEndDate, setReviewEndDate, reviewEndDateType, setReviewEndDateType, false)}
+            </Grid>
+            <Grid item xs={12}>
+              {renderDateInput('結果発表日', resultAnnouncementDate, setResultAnnouncementDate, resultAnnouncementDateType, setResultAnnouncementDateType, false)}
+            </Grid>
+          </Grid>
+        </SectionContent>
+      </StyledCard>
+
+      {/* Advanced Settings */}
+      <StyledCard>
+        <SectionHeader color="secondary">
+          <Box sx={{ mr: 2 }}>
+            <SettingsIcon color="secondary" />
+          </Box>
+          <Typography variant="h6" fontWeight="bold">
+            詳細設定
+          </Typography>
+        </SectionHeader>
+        <SectionContent>
+          <Stack spacing={3}>
+            {/* Judges */}
+            <Box>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={enableJudges}
+                    onChange={(e) => setEnableJudges(e.target.checked)}
+                    color="secondary"
+                  />
+                }
+                label="審査員リストを指定する"
+              />
+              {enableJudges && (
+                <Box sx={{ mt: 2 }}>
+                  <Grid container spacing={2} sx={{ mb: 2 }}>
+                    <Grid item xs={12} md={8}>
+                      <TextField
+                        label="審査員ID"
+                        value={judgeId}
+                        onChange={(e) => setJudgeId(e.target.value)}
+                        fullWidth
+                        size="small"
+                        error={judgeId && !isValidObjectId(judgeId)}
+                        helperText={judgeId && !isValidObjectId(judgeId) ? '無効なID形式です' : ''}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <Button
+                        startIcon={loadingJudge ? <CircularProgress size={16} /> : <AddIcon />}
+                        onClick={handleAddJudge}
+                        variant="contained"
+                        fullWidth
+                        disabled={loadingJudge}
+                        size="small"
+                      >
+                        追加
+                      </Button>
+                    </Grid>
+                  </Grid>
+                  
+                  {judges.map((judge, index) => (
+                    <JudgeCard key={index} elevation={1}>
+                      <Avatar src={judge.avatar} sx={{ width: 32, height: 32 }} />
+                      <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                        {judge.name}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleRemoveJudge(index)}
+                        color="error"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </JudgeCard>
+                  ))}
+                </Box>
+              )}
+            </Box>
+
+            <Divider />
+
+            {/* Other Settings */}
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <FormControlLabel
+                  control={<Checkbox checked={allowFinishedWorks} onChange={(e) => setAllowFinishedWorks(e.target.checked)} />}
+                  label="完結済作品に限定する"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControlLabel
+                  control={<Checkbox checked={allowPreStartDate} onChange={(e) => setAllowPreStartDate(e.target.checked)} />}
+                  label="応募開始日以前の作品を許可"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControlLabel
+                  control={<Checkbox checked={allowR18} onChange={(e) => setAllowR18(e.target.checked)} />}
+                  label="R18作品を許可"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControlLabel
+                  control={<Checkbox checked={allowSeries} onChange={(e) => setAllowSeries(e.target.checked)} />}
+                  label="シリーズ作品を許可"
+                />
+              </Grid>
+            </Grid>
+
+            {/* AI Restriction */}
+            <Box>
+              <FormControlLabel
+                control={<Checkbox checked={restrictAI} onChange={(e) => setRestrictAI(e.target.checked)} />}
+                label="使用しているAIを制限する"
+              />
+              {restrictAI && (
+                <Box sx={{ mt: 2 }}>
+                  <Grid container spacing={2} sx={{ mb: 2 }}>
+                    <Grid item xs={12} md={8}>
+                      <TextField
+                        label="AIタグ"
+                        value={aiTagInput}
+                        onChange={(e) => setAiTagInput(e.target.value)}
+                        fullWidth
+                        size="small"
+                        inputProps={{ maxLength: 50 }}
+                      />
+                      <CharacterCount isOver={aiTagInput.length > 50}>
+                        {aiTagInput.length} / 50
+                      </CharacterCount>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <Button
+                        startIcon={<AddIcon />}
+                        onClick={handleAddAiTag}
+                        variant="outlined"
+                        fullWidth
+                        disabled={aiTags.length >= 10}
+                        size="small"
+                      >
+                        追加
+                      </Button>
+                    </Grid>
+                  </Grid>
+                  <TagContainer>
+                    {aiTags.map((tag, index) => (
+                      <Chip
+                        key={index}
+                        label={tag}
+                        onDelete={() => handleRemoveAiTag(tag)}
+                        color="primary"
+                        variant="outlined"
+                        size="small"
+                      />
+                    ))}
+                  </TagContainer>
+                </Box>
+              )}
+            </Box>
+
+            {/* Genre Restriction */}
+            <Box>
+              <FormControlLabel
+                control={<Checkbox checked={restrictGenres} onChange={(e) => setRestrictGenres(e.target.checked)} />}
+                label="ジャンルを制限する"
+              />
+              {restrictGenres && (
+                <Box sx={{ mt: 2 }}>
+                  <Grid container spacing={2} sx={{ mb: 2 }}>
+                    <Grid item xs={12} md={8}>
+                      <TextField
+                        label="ジャンル"
+                        value={genreInput}
+                        onChange={(e) => setGenreInput(e.target.value)}
+                        fullWidth
+                        size="small"
+                        inputProps={{ maxLength: 50 }}
+                      />
+                      <CharacterCount isOver={genreInput.length > 50}>
+                        {genreInput.length} / 50
+                      </CharacterCount>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <Button
+                        startIcon={<AddIcon />}
+                        onClick={handleAddGenre}
+                        variant="outlined"
+                        fullWidth
+                        disabled={genres.length >= 10}
+                        size="small"
+                      >
+                        追加
+                      </Button>
+                    </Grid>
+                  </Grid>
+                  <TagContainer>
+                    {genres.map((genre, index) => (
+                      <Chip
+                        key={index}
+                        label={genre}
+                        onDelete={() => handleRemoveGenre(genre)}
+                        color="secondary"
+                        variant="outlined"
+                        size="small"
+                      />
+                    ))}
+                  </TagContainer>
+                </Box>
+              )}
+            </Box>
+
+            {/* Word Count Restriction */}
+            <Box>
+              <FormControlLabel
+                control={<Checkbox checked={restrictWordCount} onChange={(e) => setRestrictWordCount(e.target.checked)} />}
+                label="作品の文字数を制限する"
+              />
+              {restrictWordCount && (
+                <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid item xs={6}>
+                    <TextField
+                      label="最小文字数"
+                      type="number"
+                      value={minWordCount}
+                      onChange={(e) => setMinWordCount(e.target.value)}
+                      fullWidth
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField
+                      label="最大文字数"
+                      type="number"
+                      value={maxWordCount}
+                      onChange={(e) => setMaxWordCount(e.target.value)}
+                      fullWidth
+                      size="small"
+                    />
+                  </Grid>
+                </Grid>
+              )}
+            </Box>
+
+            {/* Entry Limits */}
+            <Grid container spacing={2}>
+              <Grid item xs={6}>
+                <TextField
+                  label="最小応募数"
+                  type="number"
+                  value={minEntries}
+                  onChange={(e) => setMinEntries(e.target.value)}
+                  fullWidth
+                  size="small"
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  label="最大応募数"
+                  type="number"
+                  value={maxEntries}
+                  onChange={(e) => setMaxEntries(e.target.value)}
+                  fullWidth
+                  size="small"
+                />
+              </Grid>
+            </Grid>
+
+            {/* Status */}
+            <FormControl fullWidth>
+              <InputLabel>コンテストステータス</InputLabel>
+              <Select
+                value={status}
+                label="コンテストステータス"
+                onChange={(e) => setStatus(e.target.value)}
+              >
+                <MenuItem value="開催予定">開催予定</MenuItem>
+                <MenuItem value="募集中">募集中</MenuItem>
+                <MenuItem value="募集終了">募集終了</MenuItem>
+                <MenuItem value="募集一時停止中">募集一時停止中</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+        </SectionContent>
+      </StyledCard>
+
+      {/* Action Buttons */}
+      <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mt: 4 }}>
+        <ActionButton
+          variant="outlined"
+          startIcon={<PreviewIcon />}
+          onClick={handlePreview}
+          size="large"
+        >
+          プレビュー
+        </ActionButton>
+        <ActionButton
+          variant="contained"
+          startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+          onClick={handleSubmit}
+          disabled={loading}
+          size="large"
+        >
+          {loading ? '更新中...' : 'コンテスト更新'}
+        </ActionButton>
+      </Box>
+    </PageContainer>
   );
 };
-
-const ContestInfo = React.memo(({ title, handleTitleChange, characterCountDisplay }) => (
-  <Grid item xs={12}>
-    <Typography variant="h6" sx={{ mb: 1, color: '#555' }}>
-      コンテスト基本情報<Typography component="span" color="error"> ※</Typography>
-    </Typography>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <Box display="flex" alignItems="center">
-        <TextField
-          label="コンテストタイトル"
-          variant="outlined"
-          fullWidth
-          value={title}
-          onChange={handleTitleChange}
-          required
-          inputProps={{ maxLength: 50 }}
-        />
-        <Typography variant="body2" color="error" ml={2}>
-          ※
-        </Typography>
-      </Box>
-      {characterCountDisplay(title.length, 50)}
-    </Box>
-  </Grid>
-));
-
-const ShortDescription = React.memo(({ shortDescription, handleShortDescriptionChange, characterCountDisplay }) => (
-  <Grid item xs={12}>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <Box display="flex" alignItems="center">
-        <TextField
-          label="短い概要（50字以内）"
-          variant="outlined"
-          fullWidth
-          value={shortDescription}
-          onChange={handleShortDescriptionChange}
-          required
-          inputProps={{ maxLength: 50 }}
-        />
-        <Typography variant="body2" color="error" ml={2}>
-          ※
-        </Typography>
-      </Box>
-      {characterCountDisplay(shortDescription.length, 50)}
-    </Box>
-  </Grid>
-));
-
-const DetailedDescription = React.memo(({ description, handleDescriptionChange }) => (
-  <Grid item xs={12}>
-    <Typography variant="h6" sx={{ mb: 1, color: '#555' }}>
-      詳細説明 <Typography component="span" color="error">※</Typography>
-    </Typography>
-    <Typography variant="h7" sx={{ mb: 1, color: '#555' }}>
-      （コンテスト概要、募集ジャンル、賞、賞金等、応募資格、応募方法、スケジュール、選考方法、規約など必要な情報を詳細に記載してください）
-    </Typography>
-    <Paper variant="outlined" sx={{ padding: 2, backgroundColor: '#fff' }}>
-      <CustomEditor value={description} onChange={handleDescriptionChange} />
-    </Paper>
-  </Grid>
-));
-
-const ContestImages = React.memo(({ iconPreview, headerPreview, handleImageUpload }) => (
-  <Grid item xs={12}>
-    <Typography variant="h6" sx={{ mb: 1, color: '#555' }}>
-      コンテスト画像設定
-    </Typography>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <Grid container spacing={2}>
-        <Grid item xs={12} sm={6}>
-          <Button variant="contained" component="label">
-            アイコン画像をアップロード
-            <input
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={(e) => handleImageUpload(e, 'icon')}
-            />
-          </Button>
-          {iconPreview && (
-            <Box mt={2}>
-              <img
-                src={iconPreview}
-                alt="アイコン画像プレビュー"
-                style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }}
-              />
-            </Box>
-          )}
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          <Button variant="contained" component="label">
-            ヘッダー画像をアップロード
-            <input
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={(e) => handleImageUpload(e, 'header')}
-            />
-          </Button>
-          {headerPreview && (
-            <Box mt={2}>
-              <img
-                src={headerPreview}
-                alt="ヘッダー画像プレビュー"
-                style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }}
-              />
-            </Box>
-          )}
-        </Grid>
-      </Grid>
-    </Box>
-  </Grid>
-));
-
-const DateSettings = React.memo(({
-  applicationStartDate,
-  setApplicationStartDate,
-  applicationEndDate,
-  setApplicationEndDate,
-  reviewStartDate,
-  setReviewStartDate,
-  reviewEndDate,
-  setReviewEndDate,
-  resultAnnouncementDate,
-  setResultAnnouncementDate,
-  applicationStartDateType,
-  setApplicationStartDateType,
-  applicationEndDateType,
-  setApplicationEndDateType,
-  reviewStartDateType,
-  setReviewStartDateType,
-  reviewEndDateType,
-  setReviewEndDateType,
-  resultAnnouncementDateType,
-  setResultAnnouncementDateType,
-  renderDateInput
-}) => (
-  <Grid item xs={12}>
-    <Typography variant="h6" sx={{ mb: 1, color: '#555' }}>
-      日程設定<Typography component="span" color="error"> ※応募開始、終了日必須</Typography>
-    </Typography>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <Grid container spacing={2}>
-        <DateInput
-          value={applicationEndDate}
-          setValue={setApplicationEndDate}
-          type={applicationEndDateType}
-          setType={setApplicationEndDateType}
-          isRequired={true}
-          renderDateInput={renderDateInput}
-        />
-        <DateInput
-          label="審査開始日"
-          value={reviewStartDate}
-          setValue={setReviewStartDate}
-          type={reviewStartDateType}
-          setType={setReviewStartDateType}
-          isRequired={false}
-          renderDateInput={renderDateInput}
-        />
-        <DateInput
-          label="審査終了日"
-          value={reviewEndDate}
-          setValue={setReviewEndDate}
-          type={reviewEndDateType}
-          setType={setReviewEndDateType}
-          isRequired={false}
-          renderDateInput={renderDateInput}
-        />
-        <DateInput
-          label="結果発表日"
-          value={resultAnnouncementDate}
-          setValue={setResultAnnouncementDate}
-          type={resultAnnouncementDateType}
-          setType={setResultAnnouncementDateType}
-          isRequired={false}
-          renderDateInput={renderDateInput}
-
-        />
-      </Grid>
-    </Box>
-  </Grid>
-));
-
-const DateInput = React.memo(({ label, value, setValue, type, setType, isRequired, renderDateInput }) => (
-  <Grid item xs={12} md={6}>
-    {renderDateInput(label, value, setValue, type, setType, isRequired)}
-  </Grid>
-));
-
-const DetailedSettings = React.memo(({
-  enableJudges,
-  setEnableJudges,
-  judgeId,
-  setJudgeId,
-  isValidObjectId,
-  handleAddJudge,
-  loadingJudge,
-  judges,
-  handleRemoveJudge
-}) => (
-  <Grid item xs={12}>
-    <Typography variant="h6" sx={{ mb: 1, color: '#555' }}>
-      詳細設定
-    </Typography>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={enableJudges}
-            onChange={(e) => setEnableJudges(e.target.checked)}
-          />
-        }
-        label="審査員リストを指定する（個人または会社のすみわけID）"
-      />
-      {enableJudges && (
-        <Box mt={2}>
-          <JudgeInput
-            judgeId={judgeId}
-            setJudgeId={setJudgeId}
-            isValidObjectId={isValidObjectId}
-            handleAddJudge={handleAddJudge}
-            loadingJudge={loadingJudge}
-          />
-          <JudgeList judges={judges} handleRemoveJudge={handleRemoveJudge} />
-        </Box>
-      )}
-    </Box>
-  </Grid>
-));
-
-const JudgeInput = React.memo(({
-  judgeId,
-  setJudgeId,
-  isValidObjectId,
-  handleAddJudge,
-  loadingJudge
-}) => (
-  <Grid container spacing={2}>
-    <Grid item xs={10}>
-      <TextField
-        label="審査員アカウントID"
-        variant="outlined"
-        fullWidth
-        value={judgeId}
-        onChange={(e) => setJudgeId(e.target.value)}
-        error={judgeId && !isValidObjectId(judgeId)} // エラーハンドリング
-        helperText={judgeId && !isValidObjectId(judgeId) ? '無効なID形式です' : ''}
-      />
-    </Grid>
-    <Grid item xs={2}>
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={handleAddJudge}
-        startIcon={<AddIcon />}
-        fullWidth
-        disabled={loadingJudge}
-      >
-        {loadingJudge ? <CircularProgress size={24} color="inherit" /> : '追加'}
-      </Button>
-    </Grid>
-  </Grid>
-));
-
-const JudgeList = React.memo(({ judges, handleRemoveJudge }) => (
-  <Box mt={2}>
-    {judges.map((judge, index) => (
-      <Paper
-        key={index}
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          padding: 2,
-          mb: 1,
-          backgroundColor: '#fafafa',
-        }}
-      >
-        <Avatar src={judge.avatar} alt={judge.name} sx={{ width: 40, height: 40, mr: 2 }} />
-        <Typography flexGrow={1}>{judge.name}</Typography>
-        <IconButton onClick={() => handleRemoveJudge(index)} color="error">
-          <DeleteIcon />
-        </IconButton>
-      </Paper>
-    ))}
-  </Box>
-));
-
-const OtherSettings = React.memo(({
-  allowFinishedWorks,
-  setAllowFinishedWorks,
-  allowPreStartDate,
-  setAllowPreStartDate,
-  restrictAI,
-  setRestrictAI,
-  aiTagInput,
-  setAiTagInput,
-  handleAddAiTag,
-  aiTags,
-  handleRemoveAiTag,
-  allowR18,
-  setAllowR18,
-  restrictGenres,
-  setRestrictGenres,
-  genreInput,
-  setGenreInput,
-  handleAddGenre,
-  genres,
-  handleRemoveGenre,
-  restrictWordCount,
-  setRestrictWordCount,
-  minWordCount,
-  setMinWordCount,
-  maxWordCount,
-  setMaxWordCount,
-  allowSeries,
-  setAllowSeries,
-  minEntries,
-  setMinEntries,
-  maxEntries,
-  setMaxEntries
-}) => (
-  <>
-    <AllowFinishedWorks
-      allowFinishedWorks={allowFinishedWorks}
-      setAllowFinishedWorks={setAllowFinishedWorks}
-    />
-    <AllowPreStartDate
-      allowPreStartDate={allowPreStartDate}
-      setAllowPreStartDate={setAllowPreStartDate}
-    />
-    <RestrictAI
-      restrictAI={restrictAI}
-      setRestrictAI={setRestrictAI}
-      aiTagInput={aiTagInput}
-      setAiTagInput={setAiTagInput}
-      handleAddAiTag={handleAddAiTag}
-      aiTags={aiTags}
-      handleRemoveAiTag={handleRemoveAiTag}
-    />
-    <AllowR18
-      allowR18={allowR18}
-      setAllowR18={setAllowR18}
-    />
-    <RestrictGenres
-      restrictGenres={restrictGenres}
-      setRestrictGenres={setRestrictGenres}
-      genreInput={genreInput}
-      setGenreInput={setGenreInput}
-      handleAddGenre={handleAddGenre}
-      genres={genres}
-      handleRemoveGenre={handleRemoveGenre}
-    />
-    <RestrictWordCount
-      restrictWordCount={restrictWordCount}
-      setRestrictWordCount={setRestrictWordCount}
-      minWordCount={minWordCount}
-      setMinWordCount={setMinWordCount}
-      maxWordCount={maxWordCount}
-      setMaxWordCount={setMaxWordCount}
-    />
-    <AllowSeries
-      allowSeries={allowSeries}
-      setAllowSeries={setAllowSeries}
-    />
-    <MinEntries
-      minEntries={minEntries}
-      setMinEntries={setMinEntries}
-    />
-    <MaxEntries
-      maxEntries={maxEntries}
-      setMaxEntries={setMaxEntries}
-    />
-  </>
-));
-
-const AllowFinishedWorks = React.memo(({ allowFinishedWorks, setAllowFinishedWorks }) => (
-  <Grid item xs={12}>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={allowFinishedWorks}
-            onChange={(e) => setAllowFinishedWorks(e.target.checked)}
-          />
-        }
-        label="完結済作品に限定する"
-      />
-    </Box>
-  </Grid>
-));
-
-const AllowPreStartDate = React.memo(({ allowPreStartDate, setAllowPreStartDate }) => (
-  <Grid item xs={12}>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={allowPreStartDate}
-            onChange={(e) => setAllowPreStartDate(e.target.checked)}
-          />
-        }
-        label="応募開始日以前の作品を許可"
-      />
-    </Box>
-  </Grid>
-));
-
-const RestrictAI = React.memo(({
-  restrictAI,
-  setRestrictAI,
-  aiTagInput,
-  setAiTagInput,
-  handleAddAiTag,
-  aiTags,
-  handleRemoveAiTag
-}) => (
-  <Grid item xs={12}>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={restrictAI}
-            onChange={(e) => setRestrictAI(e.target.checked)}
-          />
-        }
-        label="使用しているAIを制限する"
-      />
-      {restrictAI && (
-        <Box mt={2}>
-          <TextField
-            label="AI名を入力"
-            variant="outlined"
-            fullWidth
-            value={aiTagInput}
-            onChange={(e) => setAiTagInput(e.target.value)}
-          />
-          <Typography variant="caption" sx={{ color: '#555', display: 'block' }}>
-            {aiTagInput.length} / 50
-          </Typography>
-          <Button
-            onClick={handleAddAiTag}
-            variant="outlined"
-            sx={{ mt: 1 }}
-            disabled={!aiTagInput || aiTags.length >= 10}
-          >
-            タグを追加
-          </Button>
-          <Box mt={2}>
-            {aiTags.map((tag, index) => (
-              <Chip
-                key={index}
-                label={tag}
-                onDelete={() => handleRemoveAiTag(tag)}
-                sx={{ margin: '4px' }}
-              />
-            ))}
-          </Box>
-        </Box>
-      )}
-    </Box>
-  </Grid>
-));
-
-const AllowR18 = React.memo(({ allowR18, setAllowR18 }) => (
-  <Grid item xs={12}>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={allowR18}
-            onChange={(e) => setAllowR18(e.target.checked)}
-          />
-        }
-        label="R18作品を許可"
-      />
-    </Box>
-  </Grid>
-));
-
-const RestrictGenres = React.memo(({
-  restrictGenres,
-  setRestrictGenres,
-  genreInput,
-  setGenreInput,
-  handleAddGenre,
-  genres,
-  handleRemoveGenre
-}) => (
-  <Grid item xs={12}>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={restrictGenres}
-            onChange={(e) => setRestrictGenres(e.target.checked)}
-          />
-        }
-        label="ジャンルを制限する"
-      />
-      {restrictGenres && (
-        <Box mt={2}>
-          <TextField
-            label="ジャンルを入力"
-            variant="outlined"
-            fullWidth
-            value={genreInput}
-            onChange={(e) => setGenreInput(e.target.value)}
-          />
-          <Typography variant="caption" sx={{ color: '#555', display: 'block' }}>
-            {genreInput.length} / 50
-          </Typography>
-          <Button
-            onClick={handleAddGenre}
-            variant="outlined"
-            sx={{ mt: 1 }}
-            disabled={!genreInput || genres.length >= 10}
-          >
-            タグを追加
-          </Button>
-          <Box mt={2}>
-            {genres.map((genre, index) => (
-              <Chip
-                key={index}
-                label={genre}
-                onDelete={() => handleRemoveGenre(genre)}
-                sx={{ margin: '4px' }}
-              />
-            ))}
-          </Box>
-        </Box>
-      )}
-    </Box>
-  </Grid>
-));
-
-const RestrictWordCount = React.memo(({
-  restrictWordCount,
-  setRestrictWordCount,
-  minWordCount,
-  setMinWordCount,
-  maxWordCount,
-  setMaxWordCount
-}) => (
-  <Grid item xs={12}>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={restrictWordCount}
-            onChange={(e) => setRestrictWordCount(e.target.checked)}
-          />
-        }
-        label="作品の文字数を制限する"
-      />
-      {restrictWordCount && (
-        <Box mt={2}>
-          <TextField
-            label="最小文字数"
-            variant="outlined"
-            type="number"
-            fullWidth
-            value={minWordCount}
-            onChange={(e) => setMinWordCount(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            label="最大文字数"
-            variant="outlined"
-            type="number"
-            fullWidth
-            value={maxWordCount}
-            onChange={(e) => setMaxWordCount(e.target.value)}
-          />
-        </Box>
-      )}
-    </Box>
-  </Grid>
-));
-
-const AllowSeries = React.memo(({ allowSeries, setAllowSeries }) => (
-  <Grid item xs={12}>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={allowSeries}
-            onChange={(e) => setAllowSeries(e.target.checked)}
-          />
-        }
-        label="シリーズ作品を許可する"
-      />
-    </Box>
-  </Grid>
-));
-
-const MinEntries = React.memo(({ minEntries, setMinEntries }) => (
-  <Grid item xs={12}>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <TextField
-        label="最低投稿数"
-        variant="outlined"
-        type="number"
-        fullWidth
-        value={minEntries}
-        onChange={(e) => setMinEntries(e.target.value)}
-      />
-    </Box>
-  </Grid>
-));
-
-const MaxEntries = React.memo(({ maxEntries, setMaxEntries }) => (
-  <Grid item xs={12}>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <TextField
-        label="最大投稿数"
-        variant="outlined"
-        type="number"
-        fullWidth
-        value={maxEntries}
-        onChange={(e) => setMaxEntries(e.target.value)}
-      />
-    </Box>
-  </Grid>
-));
-
-const ContestStatus =  React.memo(({ status, setStatus }) => (
-  <Grid item xs={12}>
-    <Typography variant="h6" sx={{ mb: 1, color: '#555' }}>
-      コンテストステータス<Typography component="span" color="error"> ※</Typography>
-    </Typography>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <TextField
-        select
-        label="ステータス"
-        variant="outlined"
-        fullWidth
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-        SelectProps={{ native: true }}
-      >
-        <option value="開催予定">開催予定</option>
-        <option value="募集中">募集中</option>
-        <option value="募集終了">募集終了</option>
-        <option value="募集一時停止中">募集一時停止中</option>
-      </TextField>
-    </Box>
-  </Grid>
-));
-
-const PreviewButton = React.memo(({ handlePreview }) => (
-  <Grid item xs={12}>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <Button
-        variant="outlined"
-        color="primary"
-        fullWidth
-        onClick={handlePreview}
-        sx={{ mt: 2 }}
-      >
-        プレビュー
-      </Button>
-    </Box>
-  </Grid>
-));
-
-const SubmitButton = React.memo(({ handleSubmit, loading }) => (
-  <Grid item xs={12}>
-    <Box sx={{ backgroundColor: '#fff', padding: 3, borderRadius: 2 }}>
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={handleSubmit}
-        disabled={loading}
-        fullWidth
-      >
-        {loading ? <CircularProgress size={24} /> : 'コンテスト更新'}
-      </Button>
-    </Box>
-  </Grid>
-));
 
 export default ContestEdit;

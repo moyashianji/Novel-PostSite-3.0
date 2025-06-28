@@ -31,28 +31,35 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import StyleIcon from '@mui/icons-material/Style';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 
-// スタイル定数
-const cardStyles = {
+// テーマ対応のスタイル定数
+const getCardStyles = (theme) => ({
   borderRadius: 3,
   transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-  background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)',
+  background: theme.palette.mode === 'dark' 
+    ? `linear-gradient(145deg, ${theme.palette.background.paper} 0%, ${theme.palette.background.default} 100%)`
+    : 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)',
+  border: `1px solid ${theme.palette.divider}`,
   '&:hover': {
     transform: 'translateY(-8px) scale(1.02)',
-    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 20px 40px rgba(0, 0, 0, 0.5)'
+      : '0 20px 40px rgba(0, 0, 0, 0.15)',
   }
-};
+});
 
-const imageStyles = {
+const getImageStyles = (theme) => ({
   height: 160,
   overflow: 'hidden',
   position: 'relative',
-  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-};
+  background: theme.palette.mode === 'dark'
+    ? `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`
+    : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+});
 
-// 軽量化されたスタイルコンポーネント
-const StyledCard = styled(Card)(() => cardStyles);
+// テーマ対応のスタイルコンポーネント
+const StyledCard = styled(Card)(({ theme }) => getCardStyles(theme));
 
-const StatusBadge = styled(Chip)(() => ({
+const StatusBadge = styled(Chip)(({ theme }) => ({
   position: 'absolute',
   top: 16,
   right: 16,
@@ -60,22 +67,31 @@ const StatusBadge = styled(Chip)(() => ({
   fontWeight: 'bold',
   fontSize: '0.8rem',
   height: 32,
+  backgroundColor: theme.palette.mode === 'dark' 
+    ? theme.palette.background.paper
+    : 'rgba(255, 255, 255, 0.95)',
+  backdropFilter: 'blur(10px)',
 }));
 
-const EditButton = styled(IconButton)(() => ({
+const EditButton = styled(IconButton)(({ theme }) => ({
   position: 'absolute',
   top: 16,
   left: 16,
   zIndex: 3,
-  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  backgroundColor: theme.palette.mode === 'dark' 
+    ? 'rgba(0, 0, 0, 0.7)'
+    : 'rgba(255, 255, 255, 0.9)',
+  color: theme.palette.text.primary,
   backdropFilter: 'blur(10px)',
   '&:hover': { 
-    backgroundColor: 'white',
+    backgroundColor: theme.palette.mode === 'dark' 
+      ? 'rgba(0, 0, 0, 0.9)'
+      : 'rgba(255, 255, 255, 1)',
     transform: 'scale(1.1)',
   }
 }));
 
-// タグスタイル関数（計算量削減）
+// タグスタイル関数（テーマ対応）
 const getChipStyle = (chiptype, theme) => {
   const colorMap = {
     genre: theme?.palette?.primary?.main || '#1976d2',
@@ -88,14 +104,16 @@ const getChipStyle = (chiptype, theme) => {
   return {
     margin: '2px',
     borderRadius: 12,
-    backgroundColor: `${color}14`,
+    backgroundColor: theme.palette.mode === 'dark'
+      ? `${color}33`
+      : `${color}14`,
     color: color,
     border: `1px solid ${color}33`,
     fontSize: '0.75rem',
     height: 28,
     '&:hover': {
       backgroundColor: color,
-      color: 'white',
+      color: theme.palette.mode === 'dark' ? theme.palette.common.black : theme.palette.common.white,
       transform: 'translateY(-1px)',
     },
   };
@@ -117,27 +135,37 @@ const TagChip = React.memo(({ tag, chiptype, icon, onClick }) => {
   );
 });
 
-// メモ化された統計アイテム
-const StatItem = React.memo(({ icon, value, label }) => (
-  <Box sx={{ 
-    display: 'flex', 
-    alignItems: 'center', 
-    p: 1, 
-    borderRadius: 1, 
-    backgroundColor: '#f5f5f5',
-    '&:hover': { backgroundColor: '#e3f2fd' }
-  }}>
-    {icon}
-    <Box sx={{ ml: 1 }}>
-      <Typography variant="h6" sx={{ lineHeight: 1, fontWeight: 'bold' }}>
-        {value}
-      </Typography>
-      <Typography variant="caption" color="text.secondary">
-        {label}
-      </Typography>
+// メモ化された統計アイテム（テーマ対応）
+const StatItem = React.memo(({ icon, value, label }) => {
+  const theme = useTheme();
+  
+  return (
+    <Box sx={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      p: 1, 
+      borderRadius: 1, 
+      backgroundColor: theme.palette.mode === 'dark'
+        ? theme.palette.action.hover
+        : '#f5f5f5',
+      '&:hover': { 
+        backgroundColor: theme.palette.mode === 'dark'
+          ? theme.palette.action.selected
+          : '#e3f2fd'
+      }
+    }}>
+      {icon}
+      <Box sx={{ ml: 1 }}>
+        <Typography variant="h6" sx={{ lineHeight: 1, fontWeight: 'bold' }}>
+          {value}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          {label}
+        </Typography>
+      </Box>
     </Box>
-  </Box>
-));
+  );
+});
 
 // メモ化されたタグセクション
 const TagSection = React.memo(({ title, tags, icon, chiptype, onTagClick, compact, maxTags }) => {
@@ -213,7 +241,7 @@ const getStatusIcon = (status) => {
 };
 
 /**
- * 超軽量化コンテストカード
+ * テーマ対応コンテストカード
  */
 const ContestCard = ({ 
   contest, 
@@ -246,6 +274,9 @@ const ContestCard = ({
   
   const maxTags = compact ? 3 : 5;
   const isCreator = currentUserId && contest?.creator === currentUserId;
+  
+  // テーマ対応のスタイル
+  const imageStyles = useMemo(() => getImageStyles(theme), [theme]);
   
   // メモ化されたハンドラー
   const handleViewDetails = useCallback(() => {
@@ -287,7 +318,7 @@ const ContestCard = ({
   
   return (
     <StyledCard sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* ステータスバッジ - 従来のMUIスタイル */}
+      {/* ステータスバッジ */}
       <StatusBadge
         icon={statusIcon}
         label={contest.status}
@@ -337,7 +368,8 @@ const ContestCard = ({
             WebkitBoxOrient: 'vertical',
             minHeight: compact ? 28 : 48,
             mb: 1.5,
-            cursor: 'pointer'
+            cursor: 'pointer',
+            color: 'text.primary'
           }}
         >
           {contest.title}
@@ -412,13 +444,18 @@ const ContestCard = ({
         
         {/* 日程情報 */}
         {!compact && (
-          <Paper elevation={0} sx={{ 
-            p: 1.5,
-            mt: 1.5,
-            borderRadius: 2, 
-            backgroundColor: '#fafafa',
-            border: '1px solid rgba(0, 0, 0, 0.06)'
-          }}>
+          <Paper 
+            elevation={0} 
+            sx={{ 
+              p: 1.5,
+              mt: 1.5,
+              borderRadius: 2, 
+              backgroundColor: theme.palette.mode === 'dark'
+                ? theme.palette.action.hover
+                : '#fafafa',
+              border: `1px solid ${theme.palette.divider}`
+            }}
+          >
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
               <DateRangeIcon sx={{ fontSize: 16, color: 'primary.main', mr: 1 }} />
               <Typography variant="caption" fontWeight="bold">
@@ -457,9 +494,13 @@ const ContestCard = ({
             p: 1.2,
             textTransform: 'none',
             fontWeight: 'bold',
-            background: 'linear-gradient(45deg, #667eea 0%, #764ba2 100%)',
+            background: theme.palette.mode === 'dark'
+              ? `linear-gradient(45deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`
+              : `linear-gradient(45deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
             '&:hover': {
-              background: 'linear-gradient(45deg, #5a67d8 0%, #6b46c1 100%)',
+              background: theme.palette.mode === 'dark'
+                ? `linear-gradient(45deg, ${theme.palette.primary.light} 0%, ${theme.palette.secondary.light} 100%)`
+                : 'linear-gradient(45deg, #5a67d8 0%, #6b46c1 100%)',
               transform: 'translateY(-2px)',
             }
           }}

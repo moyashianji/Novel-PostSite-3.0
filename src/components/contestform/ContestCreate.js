@@ -12,8 +12,21 @@ import {
   useMediaQuery,
   useTheme,
   CircularProgress,
-  Alert
+  Alert,
+  Container,
+  Card,
+  CardContent,
+  Fade,
+  LinearProgress
 } from '@mui/material';
+import { styled, alpha } from '@mui/material/styles';
+import {
+  Create as CreateIcon,
+  NavigateNext as NavigateNextIcon,
+  NavigateBefore as NavigateBeforeIcon,
+  Preview as PreviewIcon,
+  Check as CheckIcon
+} from '@mui/icons-material';
 
 // フォームセクションをインポート
 import BasicInfo from './formsections/BasicInfo';
@@ -29,6 +42,100 @@ import FormActions from './formsections/FormActions';
 import { getLocalStorageData, saveFormData, savePreviewData } from './utils/storage';
 import { base64ToFile, processHtmlImages } from './utils/imageProcessor';
 import { isValidObjectId, validateForm } from './utils/validation';
+import { validateImageFile, resizeImage, formatFileSize, IMAGE_LIMITS } from './utils/imageValidator';
+
+// スタイル付きコンポーネント
+const ContestContainer = styled(Container)(({ theme }) => ({
+  paddingTop: theme.spacing(4),
+  paddingBottom: theme.spacing(8),
+  maxWidth: '1200px',
+}));
+
+const HeaderCard = styled(Card)(({ theme }) => ({
+  marginBottom: theme.spacing(4),
+  borderRadius: theme.spacing(2),
+  background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
+  border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+  boxShadow: theme.palette.mode === 'dark' 
+    ? '0 8px 32px rgba(0, 0, 0, 0.3)' 
+    : '0 8px 32px rgba(0, 0, 0, 0.1)',
+}));
+
+const StyledStepper = styled(Stepper)(({ theme }) => ({
+  marginBottom: theme.spacing(4),
+  '& .MuiStepLabel-root': {
+    '& .MuiStepLabel-label': {
+      fontSize: '0.875rem',
+      fontWeight: 500,
+    },
+    '& .MuiStepLabel-label.Mui-active': {
+      fontWeight: 600,
+      color: theme.palette.primary.main,
+    },
+    '& .MuiStepLabel-label.Mui-completed': {
+      color: theme.palette.success.main,
+    },
+  },
+  '& .MuiStepIcon-root': {
+    '&.Mui-active': {
+      color: theme.palette.primary.main,
+    },
+    '&.Mui-completed': {
+      color: theme.palette.success.main,
+    },
+  },
+}));
+
+const ContentCard = styled(Card)(({ theme }) => ({
+  borderRadius: theme.spacing(2),
+  border: `1px solid ${theme.palette.divider}`,
+  boxShadow: theme.palette.mode === 'dark' 
+    ? '0 4px 20px rgba(0, 0, 0, 0.3)' 
+    : '0 4px 20px rgba(0, 0, 0, 0.08)',
+  backgroundColor: theme.palette.background.paper,
+  transition: 'all 0.3s ease',
+  overflow: 'visible',
+}));
+
+const NavigationBox = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginTop: theme.spacing(4),
+  padding: theme.spacing(2),
+  backgroundColor: alpha(theme.palette.background.paper, 0.8),
+  borderRadius: theme.spacing(2),
+  border: `1px solid ${theme.palette.divider}`,
+  backdropFilter: 'blur(10px)',
+}));
+
+const StyledButton = styled(Button)(({ theme }) => ({
+  borderRadius: 50,
+  paddingLeft: theme.spacing(3),
+  paddingRight: theme.spacing(3),
+  paddingTop: theme.spacing(1.5),
+  paddingBottom: theme.spacing(1.5),
+  fontWeight: 600,
+  textTransform: 'none',
+  boxShadow: 'none',
+  transition: 'all 0.2s ease',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.15)',
+  },
+  '&:disabled': {
+    transform: 'none',
+    boxShadow: 'none',
+  },
+}));
+
+const ProgressIndicator = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: theme.spacing(2),
+  marginBottom: theme.spacing(3),
+}));
 
 /**
  * コンテスト作成フォームのメインコンテナーコンポーネント
@@ -52,6 +159,8 @@ const ContestCreate = ({ initialData, onSubmit }) => {
   const [headerImage, setHeaderImage] = useState(null);
   const [iconPreview, setIconPreview] = useState(initialData?.iconPreview || getLocalStorageData('iconPreview', null));
   const [headerPreview, setHeaderPreview] = useState(initialData?.headerPreview || getLocalStorageData('headerPreview', null));
+  const [imageError, setImageError] = useState({ icon: '', header: '' });
+  const [uploadProgress, setUploadProgress] = useState({ icon: 0, header: 0 });
 
   // 日付
   const [applicationStartDate, setApplicationStartDate] = useState(initialData?.applicationStartDate || getLocalStorageData('applicationStartDate', ''));
@@ -88,7 +197,7 @@ const ContestCreate = ({ initialData, onSubmit }) => {
   const [minEntries, setMinEntries] = useState(initialData?.minEntries || getLocalStorageData('minEntries', ''));
   const [maxEntries, setMaxEntries] = useState(initialData?.maxEntries || getLocalStorageData('maxEntries', ''));
   
-  // 🆕 コンテストタグ
+  // コンテストタグ
   const [contestTags, setContestTags] = useState(initialData?.contestTags || getLocalStorageData('contestTags', []));
   const [newContestTag, setNewContestTag] = useState('');
   
@@ -101,7 +210,7 @@ const ContestCreate = ({ initialData, onSubmit }) => {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
 
-  // 🆕 ステップにコンテストタグ設定を追加
+  // ステップ定義
   const steps = [
     'コンテスト基本情報',
     '詳細説明',
@@ -112,11 +221,15 @@ const ContestCreate = ({ initialData, onSubmit }) => {
     '確認と作成'
   ];
 
+  // 進捗率計算
+  const progressPercentage = useMemo(() => {
+    return ((activeStep + 1) / steps.length) * 100;
+  }, [activeStep, steps.length]);
+
   // 次のステップへ進む
   const handleNext = useCallback(() => {
     // 現在のステップのバリデーション
     if (activeStep === 0) {
-      // 基本情報のバリデーション
       if (!title || !shortDescription) {
         setErrors({
           ...errors,
@@ -126,7 +239,6 @@ const ContestCreate = ({ initialData, onSubmit }) => {
         return;
       }
     } else if (activeStep === 1) {
-      // 詳細説明のバリデーション
       if (!description || description === '<p></p>') {
         setErrors({
           ...errors,
@@ -135,7 +247,6 @@ const ContestCreate = ({ initialData, onSubmit }) => {
         return;
       }
     } else if (activeStep === 3) {
-      // 日程設定のバリデーション
       if (!applicationStartDate || !applicationEndDate) {
         setApplicationStartDateError(!applicationStartDate);
         setApplicationEndDateError(!applicationEndDate);
@@ -181,6 +292,9 @@ const ContestCreate = ({ initialData, onSubmit }) => {
             iconPreview={iconPreview}
             headerPreview={headerPreview}
             handleImageUpload={handleImageUpload}
+            imageError={imageError}
+            uploadProgress={uploadProgress}
+            imageLimits={IMAGE_LIMITS}
           />
         );
       case 3:
@@ -263,7 +377,6 @@ const ContestCreate = ({ initialData, onSubmit }) => {
           </>
         );
       case 5:
-        // 🆕 コンテストタグ設定ステップ
         return (
           <ContestTagSection
             contestTags={contestTags}
@@ -273,7 +386,6 @@ const ContestCreate = ({ initialData, onSubmit }) => {
           />
         );
       case 6:
-        // 確認と作成ステップ
         return (
           <FormActions
             handlePreview={handlePreview}
@@ -351,38 +463,16 @@ const ContestCreate = ({ initialData, onSubmit }) => {
       minEntries,
       maxEntries,
       status,
-      contestTags, // 🆕 追加
+      contestTags,
     };
 
     saveFormData(formData);
   }, [
-    title,
-    shortDescription,
-    description,
-    iconPreview,
-    headerPreview,
-    applicationStartDate,
-    applicationEndDate,
-    reviewStartDate,
-    reviewEndDate,
-    resultAnnouncementDate,
-    enableJudges,
-    judges,
-    allowFinishedWorks,
-    allowPreStartDate,
-    restrictAI,
-    aiTags,
-    allowR18,
-    restrictGenres,
-    genres,
-    restrictWordCount,
-    minWordCount,
-    maxWordCount,
-    allowSeries,
-    minEntries,
-    maxEntries,
-    status,
-    contestTags, // 🆕 追加
+    title, shortDescription, description, iconPreview, headerPreview,
+    applicationStartDate, applicationEndDate, reviewStartDate, reviewEndDate, resultAnnouncementDate,
+    enableJudges, judges, allowFinishedWorks, allowPreStartDate, restrictAI, aiTags,
+    allowR18, restrictGenres, genres, restrictWordCount, minWordCount, maxWordCount,
+    allowSeries, minEntries, maxEntries, status, contestTags,
   ]);
 
   // 保存された審査員データをロード
@@ -396,43 +486,99 @@ const ContestCreate = ({ initialData, onSubmit }) => {
   }, []);
 
   // 画像アップロード処理
-  const handleImageUpload = useCallback((event, type) => {
-    
-      // 削除アクションの場合
-  if (event.target.files === null) {
-    if (type === 'icon') {
-      setIconImage(null);
-      setIconPreview(null);
-      localStorage.removeItem('iconPreview');
-      localStorage.removeItem('iconImageName');
-    } else if (type === 'header') {
-      setHeaderImage(null);
-      setHeaderPreview(null);
-      localStorage.removeItem('headerPreview');
-      localStorage.removeItem('headerImageName');
+  // 画像アップロード処理を更新
+  const handleImageUpload = useCallback(async (event, type) => {
+    // エラーをクリア
+    setImageError(prev => ({ ...prev, [type]: '' }));
+    setUploadProgress(prev => ({ ...prev, [type]: 0 }));
+
+    // 削除アクションの場合
+    if (event.target.files === null) {
+      if (type === 'icon') {
+        setIconImage(null);
+        setIconPreview(null);
+        localStorage.removeItem('iconPreview');
+        localStorage.removeItem('iconImageName');
+      } else if (type === 'header') {
+        setHeaderImage(null);
+        setHeaderPreview(null);
+        localStorage.removeItem('headerPreview');
+        localStorage.removeItem('headerImageName');
+      }
+      return;
     }
-    return;
-  }
     
     const file = event.target.files[0];
-    if (file) {
+    if (!file) return;
+
+    try {
+      // ファイルバリデーション
+      const validation = validateImageFile(file, type);
+      if (!validation.isValid) {
+        setImageError(prev => ({ 
+          ...prev, 
+          [type]: validation.errors.join('\n') 
+        }));
+        // ファイル入力をクリア
+        event.target.value = '';
+        return;
+      }
+
+      setUploadProgress(prev => ({ ...prev, [type]: 25 }));
+
+      // 必要に応じて画像をリサイズ
+      let processedFile = file;
+      if (file.size > 1024 * 1024) { // 1MB以上の場合はリサイズ
+        const maxDimension = type === 'icon' ? 512 : 1920;
+        processedFile = await resizeImage(file, maxDimension, maxDimension, 0.85);
+        setUploadProgress(prev => ({ ...prev, [type]: 50 }));
+      }
+
+      setUploadProgress(prev => ({ ...prev, [type]: 75 }));
+
+      // ファイルを読み込み
       const reader = new FileReader();
       reader.onload = (e) => {
         const base64String = e.target.result;
 
         if (type === 'icon') {
-          setIconImage(file);
+          setIconImage(processedFile);
           setIconPreview(base64String);
           localStorage.setItem('iconPreview', base64String);
-          localStorage.setItem('iconImageName', file.name);
+          localStorage.setItem('iconImageName', processedFile.name || file.name);
         } else if (type === 'header') {
-          setHeaderImage(file);
+          setHeaderImage(processedFile);
           setHeaderPreview(base64String);
           localStorage.setItem('headerPreview', base64String);
-          localStorage.setItem('headerImageName', file.name);
+          localStorage.setItem('headerImageName', processedFile.name || file.name);
         }
+
+        setUploadProgress(prev => ({ ...prev, [type]: 100 }));
+        
+        // 進捗をリセット
+        setTimeout(() => {
+          setUploadProgress(prev => ({ ...prev, [type]: 0 }));
+        }, 1000);
       };
-      reader.readAsDataURL(file);
+
+      reader.onerror = () => {
+        setImageError(prev => ({ 
+          ...prev, 
+          [type]: 'ファイルの読み込みに失敗しました' 
+        }));
+        setUploadProgress(prev => ({ ...prev, [type]: 0 }));
+      };
+
+      reader.readAsDataURL(processedFile);
+
+    } catch (error) {
+      console.error('Image upload error:', error);
+      setImageError(prev => ({ 
+        ...prev, 
+        [type]: 'ファイルの処理中にエラーが発生しました' 
+      }));
+      setUploadProgress(prev => ({ ...prev, [type]: 0 }));
+      event.target.value = '';
     }
   }, []);
 
@@ -527,9 +673,16 @@ const ContestCreate = ({ initialData, onSubmit }) => {
   }, [title, shortDescription, description, applicationStartDate, applicationEndDate]);
 
   // フォーム送信
+  // フォーム送信時のエラーハンドリングを改善
   const handleSubmit = useCallback(async () => {
     if (!validateFormData()) {
       alert('必須項目をすべて入力してください');
+      return;
+    }
+
+    // 画像エラーがある場合は送信を停止
+    if (imageError.icon || imageError.header) {
+      alert('画像にエラーがあります。修正してから再度お試しください。');
       return;
     }
 
@@ -544,9 +697,23 @@ const ContestCreate = ({ initialData, onSubmit }) => {
       formData.append('title', title);
       formData.append('shortDescription', shortDescription);
       formData.append('description', updatedDescription);
-      if (iconImage) formData.append('iconImage', iconImage);
-      if (headerImage) formData.append('headerImage', headerImage);
+      
+      // 画像ファイルサイズの最終チェック
+      if (iconImage) {
+        if (iconImage.size > IMAGE_LIMITS.ICON_MAX_SIZE) {
+          throw new Error(`アイコン画像のサイズが大きすぎます（最大: ${IMAGE_LIMITS.ICON_MAX_SIZE / (1024 * 1024)}MB）`);
+        }
+        formData.append('iconImage', iconImage);
+      }
+      
+      if (headerImage) {
+        if (headerImage.size > IMAGE_LIMITS.HEADER_MAX_SIZE) {
+          throw new Error(`ヘッダー画像のサイズが大きすぎます（最大: ${IMAGE_LIMITS.HEADER_MAX_SIZE / (1024 * 1024)}MB）`);
+        }
+        formData.append('headerImage', headerImage);
+      }
 
+      // その他のフォームデータを追加
       formData.append('applicationStartDate', applicationStartDate);
       formData.append('applicationEndDate', applicationEndDate);
       formData.append('reviewStartDate', reviewStartDate);
@@ -568,7 +735,7 @@ const ContestCreate = ({ initialData, onSubmit }) => {
       formData.append('minEntries', minEntries);
       formData.append('maxEntries', maxEntries);
       formData.append('status', status);
-      formData.append('contestTags', JSON.stringify(contestTags)); // 🆕 追加
+      formData.append('contestTags', JSON.stringify(contestTags));
 
       // APIリクエスト送信
       const response = await fetch(`/api/contests/create`, {
@@ -577,16 +744,38 @@ const ContestCreate = ({ initialData, onSubmit }) => {
         body: formData,
       });
 
-      if (response.ok) {
-        alert('コンテストが作成されました！');
-        navigate('/contests');
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message || 'コンテスト作成に失敗しました。');
+      if (!response.ok) {
+        // エラーレスポンスの処理
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'コンテスト作成に失敗しました。');
+        } else {
+          // HTMLエラーページの場合（413エラーなど）
+          if (response.status === 413) {
+            throw new Error('ファイルサイズが大きすぎます。画像ファイルのサイズを小さくしてください。');
+          } else {
+            throw new Error(`サーバーエラーが発生しました (${response.status})`);
+          }
+        }
       }
+
+      const result = await response.json();
+      alert('コンテストが作成されました！');
+      
+      // LocalStorageをクリア
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('iconPreview') || key.startsWith('headerPreview') || 
+            key.startsWith('iconImageName') || key.startsWith('headerImageName')) {
+          localStorage.removeItem(key);
+        }
+      });
+      
+      navigate('/contests');
+
     } catch (error) {
       console.error('Error creating contest:', error);
-      alert('エラーが発生しました。');
+      alert(error.message || 'エラーが発生しました。');
     } finally {
       setLoading(false);
     }
@@ -596,8 +785,8 @@ const ContestCreate = ({ initialData, onSubmit }) => {
     enableJudges, judges, allowFinishedWorks, allowPreStartDate,
     restrictAI, aiTags, allowR18, restrictGenres, genres,
     restrictWordCount, minWordCount, maxWordCount,
-    allowSeries, minEntries, maxEntries, status, contestTags, // 🆕 追加
-    validateFormData, navigate
+    allowSeries, minEntries, maxEntries, status, contestTags,
+    validateFormData, navigate, imageError
   ]);
 
   // プレビュー表示
@@ -639,7 +828,7 @@ const ContestCreate = ({ initialData, onSubmit }) => {
       minWordCount: minWordCount,
       maxWordCount: maxWordCount,
       minEntries: minEntries,
-      contestTags: contestTags, // 🆕 追加
+      contestTags: contestTags,
     };
 
     // SessionStorageに保存
@@ -653,12 +842,12 @@ const ContestCreate = ({ initialData, onSubmit }) => {
     enableJudges, judges, status, headerPreview,
     allowFinishedWorks, allowPreStartDate, allowR18, allowSeries,
     restrictGenres, genres, restrictAI, aiTags,
-    minWordCount, maxWordCount, minEntries, contestTags // 🆕 追加
+    minWordCount, maxWordCount, minEntries, contestTags
   ]);
 
   // 文字数表示関数
   const characterCountDisplay = useMemo(() => (current, max) => (
-    <Typography variant="caption" sx={{ color: '#555' }}>{`${current} / ${max}`}</Typography>
+    <Typography variant="caption" color="text.secondary">{`${current} / ${max}`}</Typography>
   ), []);
 
   // 入力ハンドラー
@@ -675,86 +864,156 @@ const ContestCreate = ({ initialData, onSubmit }) => {
   }, []);
 
   return (
-    <Box
-      sx={{
-        padding: { xs: 2, md: 4 },
-        backgroundColor: '#f8f9fa',
-        borderRadius: 2,
-        maxWidth: '1200px',
-        margin: '0 auto',
-        boxShadow: '0px 4px 20px rgba(0,0,0,0.08)',
-      }}
-    >
-      <Typography variant="h4" gutterBottom sx={{ 
-        textAlign: 'center', 
-        color: '#333',
-        fontSize: { xs: '1.5rem', md: '2rem' },
-        fontWeight: 600,
-        mb: 4
-      }}>
-        コンテスト作成
-      </Typography>
+    <ContestContainer>
+      {/* ヘッダーカード */}
+      <HeaderCard>
+        <CardContent sx={{ textAlign: 'center', py: 4 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+            <CreateIcon sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
+            <Typography 
+              variant="h3" 
+              component="h1" 
+              fontWeight="bold"
+              sx={{ 
+                fontSize: { xs: '1.75rem', md: '2.5rem' },
+                background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                color: 'transparent',
+              }}
+            >
+              コンテスト作成
+            </Typography>
+          </Box>
+          <Typography 
+            variant="body1" 
+            color="text.secondary" 
+            sx={{ maxWidth: 600, mx: 'auto', mb: 3 }}
+          >
+            魅力的なコンテストを作成して、たくさんの作品を集めましょう
+          </Typography>
+          
+          {/* 進捗インジケーター */}
+          <ProgressIndicator>
+            <Typography variant="body2" color="text.secondary" fontWeight="medium">
+              進捗: {Math.round(progressPercentage)}%
+            </Typography>
+            <LinearProgress 
+              variant="determinate" 
+              value={progressPercentage} 
+              sx={{ 
+                width: 200, 
+                height: 8, 
+                borderRadius: 4,
+                backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                '& .MuiLinearProgress-bar': {
+                  borderRadius: 4,
+                  background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                }
+              }} 
+            />
+            <Typography variant="caption" color="text.secondary">
+              ステップ {activeStep + 1} / {steps.length}
+            </Typography>
+          </ProgressIndicator>
+        </CardContent>
+      </HeaderCard>
 
-      {/* ステッパー追加 */}
-      <Stepper 
+      {/* ステッパー */}
+      <StyledStepper 
         activeStep={activeStep} 
         alternativeLabel={!isMobile}
         orientation={isMobile ? 'vertical' : 'horizontal'}
-        sx={{ mb: 4 }}
       >
-        {steps.map((label) => (
+        {steps.map((label, index) => (
           <Step key={label}>
-            <StepLabel>{label}</StepLabel>
+            <StepLabel
+              StepIconComponent={({ active, completed }) => (
+                <Box
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: completed 
+                      ? theme.palette.success.main 
+                      : active 
+                        ? theme.palette.primary.main 
+                        : theme.palette.grey[300],
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  {completed ? <CheckIcon fontSize="small" /> : index + 1}
+                </Box>
+              )}
+            >
+              {label}
+            </StepLabel>
           </Step>
         ))}
-      </Stepper>
+      </StyledStepper>
       
-      <Paper 
-        elevation={0}
-        sx={{ 
-          p: { xs: 2, md: 4 }, 
-          mb: 3,
-          backgroundColor: '#fff',
-          borderRadius: 2,
-          border: '1px solid #eee'
-        }}
-      >
-        {getStepContent(activeStep)}
-      </Paper>
+      {/* コンテンツエリア */}
+      <Fade in={true} timeout={500}>
+        <ContentCard>
+          <CardContent sx={{ p: { xs: 3, md: 4 } }}>
+            {getStepContent(activeStep)}
+          </CardContent>
+        </ContentCard>
+      </Fade>
       
-      {/* ステップナビゲーションボタン */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-        <Button
+      {/* ナビゲーションボタン */}
+      <NavigationBox>
+        <StyledButton
           disabled={activeStep === 0}
           onClick={handleBack}
           variant="outlined"
-          sx={{ mr: 1 }}
+          startIcon={<NavigateBeforeIcon />}
         >
           戻る
-        </Button>
+        </StyledButton>
+        
+        <Typography variant="body2" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+          {steps[activeStep]}
+        </Typography>
+        
         <Box>
           {activeStep !== steps.length - 1 ? (
-            <Button
+            <StyledButton
               variant="contained"
               onClick={handleNext}
-              color="primary"
+              endIcon={<NavigateNextIcon />}
             >
               次へ
-            </Button>
+            </StyledButton>
           ) : (
-            <Button
-              variant="contained"
-              color="success"
-              onClick={handleSubmit}
-              disabled={loading}
-              startIcon={loading && <CircularProgress size={20} color="inherit" />}
-            >
-              コンテストを作成
-            </Button>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <StyledButton
+                variant="outlined"
+                onClick={handlePreview}
+                startIcon={<PreviewIcon />}
+                disabled={loading}
+              >
+                プレビュー
+              </StyledButton>
+              <StyledButton
+                variant="contained"
+                color="success"
+                onClick={handleSubmit}
+                disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <CheckIcon />}
+              >
+                {loading ? '作成中...' : 'コンテストを作成'}
+              </StyledButton>
+            </Box>
           )}
         </Box>
-      </Box>
-    </Box>
+      </NavigationBox>
+    </ContestContainer>
   );
 };
 

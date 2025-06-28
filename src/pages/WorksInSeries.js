@@ -22,11 +22,13 @@ import StarIcon from '@mui/icons-material/Star';
 import PostCard from '../components/post/PostCard';
 import { useAuth } from '../context/AuthContext';
 
-// スタイル付きコンポーネント - モダンで洗練されたデザイン
+// テーマ対応のスタイル付きコンポーネント
 const SeriesInfoCard = styled(Card)(({ theme }) => ({
   borderRadius: theme.spacing(3),
   overflow: 'hidden',
-  boxShadow: '0 16px 40px rgba(0, 0, 0, 0.1)',
+  boxShadow: theme.palette.mode === 'dark' 
+    ? '0 16px 40px rgba(0, 0, 0, 0.5)'
+    : '0 16px 40px rgba(0, 0, 0, 0.1)',
   marginBottom: theme.spacing(5),
   background: 'transparent',
   position: 'relative',
@@ -40,7 +42,9 @@ const HeaderBackground = styled(Box)(({ theme }) => ({
   left: 0,
   right: 0,
   height: '220px',
-  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
+  background: theme.palette.mode === 'dark'
+    ? `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 50%, ${theme.palette.primary.main} 100%)`
+    : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 50%, ${theme.palette.primary.light} 100%)`,
   zIndex: 0,
   '&::after': {
     content: '""',
@@ -49,7 +53,9 @@ const HeaderBackground = styled(Box)(({ theme }) => ({
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'linear-gradient(45deg, rgba(102, 126, 234, 0.8), rgba(118, 75, 162, 0.9))',
+    background: theme.palette.mode === 'dark'
+      ? 'linear-gradient(45deg, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.6))'
+      : 'linear-gradient(45deg, rgba(102, 126, 234, 0.8), rgba(118, 75, 162, 0.9))',
   }
 }));
 
@@ -58,7 +64,9 @@ const ContentWrapper = styled(Box)(({ theme }) => ({
   zIndex: 1,
   padding: theme.spacing(4),
   paddingTop: theme.spacing(8),
-  background: 'rgba(255, 255, 255, 0.05)',
+  background: theme.palette.mode === 'dark'
+    ? 'rgba(0, 0, 0, 0.2)'
+    : 'rgba(255, 255, 255, 0.05)',
   backdropFilter: 'blur(20px)',
 }));
 
@@ -68,14 +76,22 @@ const AuthorCard = styled(Box)(({ theme }) => ({
   marginBottom: theme.spacing(3),
   padding: theme.spacing(3),
   borderRadius: theme.spacing(2),
-  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  backgroundColor: theme.palette.mode === 'dark'
+    ? 'rgba(255, 255, 255, 0.05)'
+    : 'rgba(255, 255, 255, 0.95)',
   backdropFilter: 'blur(20px)',
-  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-  border: '1px solid rgba(255, 255, 255, 0.2)',
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 8px 32px rgba(0, 0, 0, 0.3)'
+    : '0 8px 32px rgba(0, 0, 0, 0.1)',
+  border: theme.palette.mode === 'dark'
+    ? '1px solid rgba(255, 255, 255, 0.1)'
+    : '1px solid rgba(255, 255, 255, 0.2)',
   transition: 'all 0.3s ease',
   '&:hover': {
     transform: 'translateY(-2px)',
-    boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 12px 40px rgba(0, 0, 0, 0.4)'
+      : '0 12px 40px rgba(0, 0, 0, 0.15)',
   }
 }));
 
@@ -83,29 +99,45 @@ const SeriesDescriptionCard = styled(Box)(({ theme }) => ({
   marginTop: theme.spacing(3),
   padding: theme.spacing(4),
   borderRadius: theme.spacing(3),
-  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  backgroundColor: theme.palette.mode === 'dark'
+    ? 'rgba(255, 255, 255, 0.05)'
+    : 'rgba(255, 255, 255, 0.95)',
   backdropFilter: 'blur(20px)',
-  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-  border: '1px solid rgba(255, 255, 255, 0.2)',
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 8px 32px rgba(0, 0, 0, 0.3)'
+    : '0 8px 32px rgba(0, 0, 0, 0.1)',
+  border: theme.palette.mode === 'dark'
+    ? '1px solid rgba(255, 255, 255, 0.1)'
+    : '1px solid rgba(255, 255, 255, 0.2)',
   transition: 'all 0.3s ease',
   '&:hover': {
     transform: 'translateY(-2px)',
-    boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 12px 40px rgba(0, 0, 0, 0.4)'
+      : '0 12px 40px rgba(0, 0, 0, 0.15)',
   }
 }));
 
 const StatsCard = styled(Box)(({ theme }) => ({
   padding: theme.spacing(3),
   borderRadius: theme.spacing(2),
-  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  backgroundColor: theme.palette.mode === 'dark'
+    ? 'rgba(255, 255, 255, 0.05)'
+    : 'rgba(255, 255, 255, 0.95)',
   backdropFilter: 'blur(20px)',
-  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-  border: '1px solid rgba(255, 255, 255, 0.2)',
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 8px 32px rgba(0, 0, 0, 0.3)'
+    : '0 8px 32px rgba(0, 0, 0, 0.1)',
+  border: theme.palette.mode === 'dark'
+    ? '1px solid rgba(255, 255, 255, 0.1)'
+    : '1px solid rgba(255, 255, 255, 0.2)',
   height: '100%',
   transition: 'all 0.3s ease',
   '&:hover': {
     transform: 'translateY(-2px)',
-    boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 12px 40px rgba(0, 0, 0, 0.4)'
+      : '0 12px 40px rgba(0, 0, 0, 0.15)',
   }
 }));
 
@@ -115,10 +147,14 @@ const StatsItem = styled(Box)(({ theme }) => ({
   marginBottom: theme.spacing(2),
   padding: theme.spacing(1.5),
   borderRadius: theme.spacing(1),
-  backgroundColor: 'rgba(248, 250, 252, 0.8)',
+  backgroundColor: theme.palette.mode === 'dark'
+    ? 'rgba(255, 255, 255, 0.05)'
+    : 'rgba(248, 250, 252, 0.8)',
   transition: 'all 0.2s ease',
   '&:hover': {
-    backgroundColor: 'rgba(248, 250, 252, 1)',
+    backgroundColor: theme.palette.mode === 'dark'
+      ? 'rgba(255, 255, 255, 0.1)'
+      : 'rgba(248, 250, 252, 1)',
     transform: 'translateX(4px)',
   },
   '&:last-child': {
@@ -146,14 +182,18 @@ const FollowButton = styled(Button)(({ theme, isfollowing }) => ({
   textTransform: 'none',
   fontSize: '0.95rem',
   boxShadow: isfollowing === 'true' 
-    ? '0 4px 12px rgba(25, 118, 210, 0.3)' 
-    : '0 4px 12px rgba(0, 0, 0, 0.1)',
+    ? `0 4px 12px ${theme.palette.primary.main}40`
+    : theme.palette.mode === 'dark'
+      ? '0 4px 12px rgba(255, 255, 255, 0.1)'
+      : '0 4px 12px rgba(0, 0, 0, 0.1)',
   transition: 'all 0.3s ease',
   '&:hover': {
     transform: 'translateY(-2px)',
     boxShadow: isfollowing === 'true' 
-      ? '0 6px 16px rgba(25, 118, 210, 0.4)' 
-      : '0 6px 16px rgba(0, 0, 0, 0.15)',
+      ? `0 6px 16px ${theme.palette.primary.main}60`
+      : theme.palette.mode === 'dark'
+        ? '0 6px 16px rgba(255, 255, 255, 0.15)'
+        : '0 6px 16px rgba(0, 0, 0, 0.15)',
   }
 }));
 
@@ -167,6 +207,7 @@ const SectionTitle = styled(Typography)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   position: 'relative',
+  color: theme.palette.text.primary,
   '&::after': {
     content: '""',
     position: 'absolute',
@@ -187,14 +228,16 @@ const EpisodeNumber = styled(Box)(({ theme }) => ({
   height: 40,
   borderRadius: '50%',
   backgroundColor: theme.palette.primary.main,
-  color: 'white',
+  color: theme.palette.mode === 'dark' ? theme.palette.common.black : theme.palette.common.white,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   fontWeight: 'bold',
   fontSize: '0.9rem',
   zIndex: 10,
-  boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 4px 8px rgba(0,0,0,0.5)'
+    : '0 4px 8px rgba(0,0,0,0.2)',
 }));
 
 const WorksInSeries = () => {
@@ -343,11 +386,11 @@ const WorksInSeries = () => {
         aria-label="breadcrumb"
         sx={{ mb: 4 }}
       >
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', color: 'inherit', textDecoration: 'none' }}>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', color: theme.palette.text.primary, textDecoration: 'none' }}>
           <HomeIcon sx={{ mr: 0.5 }} fontSize="small" />
           ホーム
         </Link>
-        <Link to="/search?type=series" style={{ display: 'flex', alignItems: 'center', color: 'inherit', textDecoration: 'none' }}>
+        <Link to="/search?type=series" style={{ display: 'flex', alignItems: 'center', color: theme.palette.text.primary, textDecoration: 'none' }}>
           <BookIcon sx={{ mr: 0.5 }} fontSize="small" />
           シリーズ一覧
         </Link>
@@ -401,10 +444,16 @@ const WorksInSeries = () => {
               <Paper sx={{
                 p: 3,
                 borderRadius: 3,
-                backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                backgroundColor: theme.palette.mode === 'dark'
+                  ? 'rgba(255, 255, 255, 0.05)'
+                  : 'rgba(255, 255, 255, 0.98)',
                 backdropFilter: 'blur(20px)',
-                boxShadow: '0 12px 40px rgba(0, 0, 0, 0.2)',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
+                boxShadow: theme.palette.mode === 'dark'
+                  ? '0 12px 40px rgba(0, 0, 0, 0.5)'
+                  : '0 12px 40px rgba(0, 0, 0, 0.2)',
+                border: theme.palette.mode === 'dark'
+                  ? '1px solid rgba(255, 255, 255, 0.1)'
+                  : '1px solid rgba(255, 255, 255, 0.3)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 2,
@@ -425,22 +474,32 @@ const WorksInSeries = () => {
                       py: 1.5,
                       fontWeight: 'bold',
                       boxShadow: isFollowing 
-                        ? '0 6px 20px rgba(25, 118, 210, 0.4)' 
-                        : '0 6px 20px rgba(0, 0, 0, 0.15)',
+                        ? `0 6px 20px ${theme.palette.primary.main}60`
+                        : theme.palette.mode === 'dark'
+                          ? '0 6px 20px rgba(255, 255, 255, 0.1)'
+                          : '0 6px 20px rgba(0, 0, 0, 0.15)',
                       background: isFollowing 
-                        ? 'linear-gradient(45deg, #1976d2, #42a5f5)'
-                        : 'linear-gradient(45deg, #ffffff, #f5f5f5)',
-                      color: isFollowing ? 'white' : '#1976d2',
-                      border: isFollowing ? 'none' : '2px solid #1976d2',
+                        ? `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`
+                        : theme.palette.mode === 'dark'
+                          ? 'linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05))'
+                          : 'linear-gradient(45deg, #ffffff, #f5f5f5)',
+                      color: isFollowing 
+                        ? theme.palette.primary.contrastText 
+                        : theme.palette.primary.main,
+                      border: isFollowing 
+                        ? 'none' 
+                        : `2px solid ${theme.palette.primary.main}`,
                       '&:hover': {
                         transform: 'translateY(-2px)',
                         boxShadow: isFollowing 
-                          ? '0 8px 25px rgba(25, 118, 210, 0.5)' 
-                          : '0 8px 25px rgba(0, 0, 0, 0.2)',
+                          ? `0 8px 25px ${theme.palette.primary.main}80`
+                          : theme.palette.mode === 'dark'
+                            ? '0 8px 25px rgba(255, 255, 255, 0.2)'
+                            : '0 8px 25px rgba(0, 0, 0, 0.2)',
                         background: isFollowing 
-                          ? 'linear-gradient(45deg, #1565c0, #1976d2)'
-                          : 'linear-gradient(45deg, #1976d2, #42a5f5)',
-                        color: 'white'
+                          ? `linear-gradient(45deg, ${theme.palette.primary.dark}, ${theme.palette.primary.main})`
+                          : `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`,
+                        color: theme.palette.primary.contrastText
                       }
                     }}
                   >
@@ -461,9 +520,11 @@ const WorksInSeries = () => {
                           py: 1.5,
                           fontWeight: 'bold',
                           opacity: 0.7,
-                          backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                          border: '2px solid rgba(25, 118, 210, 0.5)',
-                          color: 'rgba(25, 118, 210, 0.7)'
+                          backgroundColor: theme.palette.mode === 'dark'
+                            ? 'rgba(255, 255, 255, 0.05)'
+                            : 'rgba(255, 255, 255, 0.8)',
+                          border: `2px solid ${theme.palette.primary.main}50`,
+                          color: `${theme.palette.primary.main}70`
                         }}
                       >
                         このシリーズをフォロー
@@ -477,8 +538,10 @@ const WorksInSeries = () => {
                   px: 3,
                   py: 1.5,
                   borderRadius: 2,
-                  backgroundColor: 'rgba(248, 250, 252, 0.9)',
-                  border: '1px solid rgba(0, 0, 0, 0.08)'
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(255, 255, 255, 0.1)'
+                    : 'rgba(248, 250, 252, 0.9)',
+                  border: `1px solid ${theme.palette.divider}`
                 }}>
                   <PersonIcon sx={{ mr: 1, color: 'primary.main' }} />
                   <Typography variant="body1" fontWeight="medium" color="text.primary">
@@ -502,13 +565,15 @@ const WorksInSeries = () => {
                           width: 64, 
                           height: 64, 
                           mr: 3,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                          boxShadow: theme.palette.mode === 'dark'
+                            ? '0 4px 12px rgba(0,0,0,0.5)'
+                            : '0 4px 12px rgba(0,0,0,0.15)'
                         }}
                       >
                         <PersonIcon fontSize="large" />
                       </Avatar>
                       <Box sx={{ flex: 1 }}>
-                        <Typography variant="h6" fontWeight="bold" sx={{ mb: 0.5 }}>
+                        <Typography variant="h6" fontWeight="bold" sx={{ mb: 0.5 }} color="text.primary">
                           {series.author.nickname}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
@@ -537,7 +602,7 @@ const WorksInSeries = () => {
                     mb: 2,
                     display: 'flex',
                     alignItems: 'center',
-                    color: theme.palette.primary.main
+                    color: 'primary.main'
                   }}>
                     <BookIcon sx={{ mr: 1 }} />
                     あらすじ
@@ -545,7 +610,8 @@ const WorksInSeries = () => {
                   <Typography variant="body1" sx={{ 
                     mb: 3, 
                     lineHeight: 1.8,
-                    fontSize: '1.1rem'
+                    fontSize: '1.1rem',
+                    color: 'text.primary'
                   }}>
                     {series.description}
                   </Typography>
@@ -557,7 +623,7 @@ const WorksInSeries = () => {
                     mb: 2,
                     display: 'flex',
                     alignItems: 'center',
-                    color: theme.palette.secondary.main
+                    color: 'secondary.main'
                   }}>
                     <LocalOfferIcon sx={{ mr: 1 }} />
                     タグ
@@ -571,9 +637,14 @@ const WorksInSeries = () => {
                         sx={{ 
                           borderRadius: 2,
                           transition: 'all 0.2s ease',
+                          backgroundColor: theme.palette.mode === 'dark'
+                            ? `${theme.palette.primary.main}20`
+                            : 'transparent',
                           '&:hover': {
                             transform: 'translateY(-1px)',
-                            boxShadow: '0 4px 8px rgba(0,0,0,0.15)'
+                            boxShadow: theme.palette.mode === 'dark'
+                              ? '0 4px 8px rgba(0,0,0,0.3)'
+                              : '0 4px 8px rgba(0,0,0,0.15)'
                           }
                         }}
                         color="primary"
@@ -592,9 +663,10 @@ const WorksInSeries = () => {
                     fontWeight: 'bold',
                     mb: 3,
                     display: 'flex',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    color: 'text.primary'
                   }}>
-                    <BookIcon sx={{ mr: 1.5, color: theme.palette.primary.main }} />
+                    <BookIcon sx={{ mr: 1.5, color: 'primary.main' }} />
                     シリーズ統計
                   </Typography>
 
@@ -605,7 +677,7 @@ const WorksInSeries = () => {
                       <BookIcon fontSize="small" />
                     </StatIcon>
                     <Box>
-                      <Typography variant="h6" fontWeight="bold">
+                      <Typography variant="h6" fontWeight="bold" color="text.primary">
                         {sortedWorks.length}話
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -619,7 +691,7 @@ const WorksInSeries = () => {
                       <BookmarkIcon fontSize="small" />
                     </StatIcon>
                     <Box>
-                      <Typography variant="h6" fontWeight="bold">
+                      <Typography variant="h6" fontWeight="bold" color="text.primary">
                         {followerCount.toLocaleString()}人
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -633,7 +705,7 @@ const WorksInSeries = () => {
                       <ThumbUpIcon fontSize="small" />
                     </StatIcon>
                     <Box>
-                      <Typography variant="h6" fontWeight="bold">
+                      <Typography variant="h6" fontWeight="bold" color="text.primary">
                         {sortedWorks.reduce((sum, work) => sum + (work.goodCounter || 0), 0).toLocaleString()}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -647,7 +719,7 @@ const WorksInSeries = () => {
                       <VisibilityIcon fontSize="small" />
                     </StatIcon>
                     <Box>
-                      <Typography variant="h6" fontWeight="bold">
+                      <Typography variant="h6" fontWeight="bold" color="text.primary">
                         {sortedWorks.reduce((sum, work) => sum + (work.viewCounter || 0), 0).toLocaleString()}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -665,7 +737,7 @@ const WorksInSeries = () => {
       {/* 作品一覧セクション */}
       <WorksSection>
         <SectionTitle variant="h4">
-          <BookIcon sx={{ mr: 2, color: theme.palette.primary.main }} />
+          <BookIcon sx={{ mr: 2, color: 'primary.main' }} />
           作品一覧（{sortedWorks.length}話）
         </SectionTitle>
 
@@ -688,9 +760,11 @@ const WorksInSeries = () => {
           <Box sx={{ 
             py: 8, 
             textAlign: 'center',
-            backgroundColor: 'rgba(248, 250, 252, 0.8)',
+            backgroundColor: theme.palette.mode === 'dark'
+              ? 'rgba(255, 255, 255, 0.05)'
+              : 'rgba(248, 250, 252, 0.8)',
             borderRadius: 3,
-            border: '2px dashed rgba(0, 0, 0, 0.1)'
+            border: `2px dashed ${theme.palette.divider}`
           }}>
             <BookIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
             <Typography variant="h6" color="text.secondary" gutterBottom>

@@ -15,7 +15,9 @@ const ActionButton = styled(Button)(({ theme }) => ({
   transition: 'all 0.2s',
   '&:hover': {
     transform: 'translateY(-3px)',
-    boxShadow: '0 6px 15px rgba(0, 0, 0, 0.1)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 6px 15px rgba(0, 0, 0, 0.4)'
+      : '0 6px 15px rgba(0, 0, 0, 0.1)',
   },
 }));
 
@@ -44,11 +46,16 @@ const ActionButtons = memo(({ hasLiked, isInBookshelf, handleGoodClick, handleBo
         flexWrap: { xs: 'wrap', md: 'nowrap' },
         bottom: theme.spacing(3),
         zIndex: 10,
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        backgroundColor: theme.palette.mode === 'dark'
+          ? 'rgba(30, 30, 30, 0.9)'
+          : 'rgba(255, 255, 255, 0.9)',
         backdropFilter: 'blur(10px)',
         padding: theme.spacing(2),
         borderRadius: theme.shape.borderRadius * 2,
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
+        boxShadow: theme.palette.mode === 'dark'
+          ? '0 8px 24px rgba(0, 0, 0, 0.4)'
+          : '0 8px 24px rgba(0, 0, 0, 0.08)',
+        border: `1px solid ${theme.palette.divider}`,
       }}
     >
       <ActionButton

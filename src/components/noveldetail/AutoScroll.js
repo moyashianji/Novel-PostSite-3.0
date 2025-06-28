@@ -12,10 +12,21 @@ const ScrollContainer = styled(Paper)(({ theme }) => ({
   borderRadius: 16,
   display: 'flex',
   flexDirection: 'column',
-  boxShadow: theme.shadows[1],
+  boxShadow: theme.palette.mode === 'dark' 
+    ? '0 4px 20px rgba(0, 0, 0, 0.4)'
+    : theme.shadows[1],
   border: '1px solid',
   borderColor: theme.palette.divider,
-  background: 'linear-gradient(to right, #f8f9fa, #ffffff)',
+  background: theme.palette.mode === 'dark'
+    ? `linear-gradient(to right, ${theme.palette.background.default}, ${theme.palette.background.paper})`
+    : 'linear-gradient(to right, #f8f9fa, #ffffff)',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 8px 30px rgba(0, 0, 0, 0.5)'
+      : '0 8px 25px rgba(0, 0, 0, 0.15)',
+    transform: 'translateY(-2px)',
+  }
 }));
 
 const ScrollControls = styled(Box)(({ theme }) => ({
@@ -34,6 +45,75 @@ const SpeedControls = styled(Box)(({ theme }) => ({
   alignItems: 'center',
   width: '100%',
   marginTop: theme.spacing(2),
+}));
+
+const StyledSlider = styled(Slider)(({ theme }) => ({
+  '& .MuiSlider-track': {
+    background: theme.palette.mode === 'dark'
+      ? `linear-gradient(90deg, ${theme.palette.primary.dark}, ${theme.palette.primary.main})`
+      : `linear-gradient(90deg, ${theme.palette.primary.light}, ${theme.palette.primary.main})`,
+  },
+  '& .MuiSlider-thumb': {
+    backgroundColor: theme.palette.primary.main,
+    border: theme.palette.mode === 'dark'
+      ? `2px solid ${theme.palette.background.paper}`
+      : '2px solid #fff',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 4px 8px rgba(0, 0, 0, 0.4)'
+      : '0 2px 6px rgba(0, 0, 0, 0.2)',
+    '&:hover': {
+      boxShadow: theme.palette.mode === 'dark'
+        ? '0 6px 12px rgba(0, 0, 0, 0.5)'
+        : '0 4px 10px rgba(0, 0, 0, 0.3)',
+    },
+  },
+  '& .MuiSlider-rail': {
+    backgroundColor: theme.palette.mode === 'dark'
+      ? theme.palette.action.disabled
+      : theme.palette.grey[300],
+  },
+  '& .MuiSlider-valueLabel': {
+    backgroundColor: theme.palette.mode === 'dark'
+      ? theme.palette.background.paper
+      : theme.palette.grey[700],
+    color: theme.palette.mode === 'dark'
+      ? theme.palette.text.primary
+      : theme.palette.common.white,
+    '&:before': {
+      borderTopColor: theme.palette.mode === 'dark'
+        ? theme.palette.background.paper
+        : theme.palette.grey[700],
+    },
+  },
+}));
+
+const ActionButton = styled(Button)(({ theme, variant }) => ({
+  flex: 1,
+  borderRadius: 25,
+  padding: theme.spacing(1.5, 3),
+  fontWeight: 600,
+  textTransform: 'none',
+  transition: 'all 0.2s ease',
+  boxShadow: variant === 'contained'
+    ? theme.palette.mode === 'dark'
+      ? '0 4px 12px rgba(0, 0, 0, 0.4)'
+      : '0 4px 12px rgba(0, 0, 0, 0.15)'
+    : 'none',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: variant === 'contained'
+      ? theme.palette.mode === 'dark'
+        ? '0 6px 16px rgba(0, 0, 0, 0.5)'
+        : '0 6px 16px rgba(0, 0, 0, 0.2)'
+      : theme.palette.mode === 'dark'
+        ? '0 4px 12px rgba(0, 0, 0, 0.3)'
+        : '0 4px 12px rgba(0, 0, 0, 0.1)',
+  },
+  '&:disabled': {
+    transform: 'none',
+    boxShadow: 'none',
+    opacity: 0.6,
+  },
 }));
 
 const AutoScroll = ({ scrollSpeed, setScrollSpeed }) => {
@@ -91,17 +171,32 @@ const AutoScroll = ({ scrollSpeed, setScrollSpeed }) => {
 
   return (
     <ScrollContainer>
-      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-        <SpeedIcon sx={{ marginRight: 1 }} />
+      <Typography 
+        variant="h6" 
+        gutterBottom 
+        sx={{ 
+          display: 'flex', 
+          alignItems: 'center',
+          color: 'text.primary',
+          fontWeight: 600
+        }}
+      >
+        <SpeedIcon sx={{ marginRight: 1, color: 'primary.main' }} />
         自動スクロール
       </Typography>
       
       <SpeedControls>
         <Box sx={{ width: '100%', mr: 2 }}>
-          <Typography id="speed-slider" gutterBottom variant="body2" color="textSecondary">
+          <Typography 
+            id="speed-slider" 
+            gutterBottom 
+            variant="body2" 
+            color="text.secondary"
+            sx={{ fontWeight: 500 }}
+          >
             スクロール速度
           </Typography>
-          <Slider
+          <StyledSlider
             aria-labelledby="speed-slider"
             value={displaySpeed}
             min={minSpeed}
@@ -112,34 +207,36 @@ const AutoScroll = ({ scrollSpeed, setScrollSpeed }) => {
             color="primary"
           />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-            <Typography variant="caption" color="textSecondary">ゆっくり</Typography>
-            <Typography variant="caption" color="textSecondary">速い</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+              ゆっくり
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+              速い
+            </Typography>
           </Box>
         </Box>
       </SpeedControls>
       
       <ScrollControls sx={{ mt: 2 }}>
-        <Button
+        <ActionButton
           variant={isScrolling ? "outlined" : "contained"}
           color="primary"
           onClick={handleScroll}
           disabled={isScrolling}
           startIcon={<PlayArrowIcon />}
-          sx={{ flex: 1 }}
         >
           スクロール開始
-        </Button>
+        </ActionButton>
         
-        <Button
+        <ActionButton
           variant={isScrolling ? "contained" : "outlined"}
           color="secondary"
           onClick={handleStopScroll}
           disabled={!isScrolling}
           startIcon={<StopIcon />}
-          sx={{ flex: 1 }}
         >
           スクロール停止
-        </Button>
+        </ActionButton>
       </ScrollControls>
     </ScrollContainer>
   );
