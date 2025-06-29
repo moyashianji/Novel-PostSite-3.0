@@ -20,6 +20,7 @@ import {
   Tab,
   alpha,
   Paper,
+  useTheme,
 } from '@mui/material';
 import {
   Notifications as NotificationsIcon,
@@ -41,25 +42,36 @@ import { useNotifications } from '../../../context/NotificationContext';
 import { formatDistanceToNow } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
-// スタイル付きコンポーネント
+// スタイル付きコンポーネント - テーマ対応
 const NotificationMenuPaper = styled(Paper)(({ theme }) => ({
   maxWidth: 380,
   width: '100vw',
   maxHeight: '80vh',
   overflow: 'hidden',
   borderRadius: 12,
-  boxShadow: '0 8px 40px rgba(0, 0, 0, 0.12)',
-  border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 12px 48px rgba(0, 0, 0, 0.4)'
+    : '0 8px 40px rgba(0, 0, 0, 0.12)',
+  border: `1px solid ${alpha(theme.palette.divider, theme.palette.mode === 'dark' ? 0.2 : 0.08)}`,
+  backgroundColor: theme.palette.background.paper,
 }));
 
 const NotificationItem = styled(ListItem)(({ theme, read }) => ({
   padding: theme.spacing(1.5, 2.5),
-  backgroundColor: read ? 'transparent' : alpha(theme.palette.primary.light, 0.05),
-  borderLeft: read ? 'none' : `3px solid ${theme.palette.primary.main}`,
+  backgroundColor: read 
+    ? 'transparent' 
+    : theme.palette.mode === 'dark'
+      ? alpha(theme.palette.primary.main, 0.15)
+      : alpha(theme.palette.primary.light, 0.05),
+  borderLeft: read 
+    ? 'none' 
+    : `3px solid ${theme.palette.primary.main}`,
   transition: 'all 0.2s ease',
   cursor: 'pointer',
   '&:hover': {
-    backgroundColor: alpha(theme.palette.primary.light, 0.08),
+    backgroundColor: theme.palette.mode === 'dark'
+      ? alpha(theme.palette.primary.main, 0.2)
+      : alpha(theme.palette.primary.light, 0.08),
     transform: 'translateY(-1px)',
   },
 }));
@@ -72,7 +84,7 @@ const TimeChip = styled(Box)(({ theme }) => ({
   marginTop: 4,
 }));
 
-const NotificationAvatar = styled(Avatar)(({ theme, notificationType }) => {
+const NotificationAvatar = styled(Avatar)(({ theme, notificationType, read }) => {
   const colors = {
     post: theme.palette.info.main,
     follow: theme.palette.success.main,
@@ -82,11 +94,20 @@ const NotificationAvatar = styled(Avatar)(({ theme, notificationType }) => {
     default: theme.palette.primary.main,
   };
   
+  const bgColor = colors[notificationType] || colors.default;
+  
   return {
-    backgroundColor: colors[notificationType] || colors.default,
+    backgroundColor: bgColor,
     width: 40,
     height: 40,
-    boxShadow: read => read ? 'none' : `0 2px 8px ${alpha(colors[notificationType] || colors.default, 0.4)}`,
+    boxShadow: read 
+      ? 'none' 
+      : theme.palette.mode === 'dark'
+        ? `0 2px 12px ${alpha(bgColor, 0.6)}`
+        : `0 2px 8px ${alpha(bgColor, 0.4)}`,
+    border: theme.palette.mode === 'dark' 
+      ? `1px solid ${alpha(theme.palette.common.white, 0.1)}` 
+      : 'none',
   };
 });
 
@@ -98,17 +119,31 @@ const EmptyState = styled(Box)(({ theme }) => ({
   justifyContent: 'center',
   color: theme.palette.text.secondary,
   height: 200,
+  backgroundColor: theme.palette.mode === 'dark'
+    ? alpha(theme.palette.background.default, 0.3)
+    : alpha(theme.palette.grey[50], 0.5),
+  borderRadius: theme.spacing(1),
+  margin: theme.spacing(2),
 }));
 
 const StyledTabs = styled(Tabs)(({ theme }) => ({
+  backgroundColor: theme.palette.mode === 'dark'
+    ? alpha(theme.palette.background.default, 0.8)
+    : alpha(theme.palette.grey[50], 0.8),
   '& .MuiTab-root': {
     minHeight: 48,
     fontSize: '0.85rem',
     fontWeight: 500,
+    color: theme.palette.text.secondary,
+    '&.Mui-selected': {
+      color: theme.palette.primary.main,
+      fontWeight: 600,
+    },
   },
   '& .MuiTabs-indicator': {
     height: 3,
     borderRadius: '3px 3px 0 0',
+    backgroundColor: theme.palette.primary.main,
   },
 }));
 
@@ -118,8 +153,22 @@ const ActionButton = styled(Button)(({ theme }) => ({
   borderRadius: 20,
   boxShadow: 'none',
   padding: '4px 12px',
+  backgroundColor: theme.palette.mode === 'dark'
+    ? alpha(theme.palette.primary.main, 0.2)
+    : alpha(theme.palette.primary.main, 0.1),
+  color: theme.palette.primary.main,
+  border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
   '&:hover': {
+    backgroundColor: theme.palette.mode === 'dark'
+      ? alpha(theme.palette.primary.main, 0.3)
+      : alpha(theme.palette.primary.main, 0.15),
     boxShadow: 'none',
+  },
+  '&:disabled': {
+    backgroundColor: theme.palette.mode === 'dark'
+      ? alpha(theme.palette.action.disabled, 0.1)
+      : alpha(theme.palette.action.disabled, 0.05),
+    color: theme.palette.action.disabled,
   },
 }));
 
@@ -128,14 +177,20 @@ const HeaderBox = styled(Box)(({ theme }) => ({
   alignItems: 'center',
   justifyContent: 'space-between',
   padding: theme.spacing(2, 2.5),
-  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
-  backgroundColor: alpha(theme.palette.background.default, 0.5),
+  borderBottom: `1px solid ${alpha(theme.palette.divider, theme.palette.mode === 'dark' ? 0.2 : 0.05)}`,
+  backgroundColor: theme.palette.mode === 'dark'
+    ? alpha(theme.palette.background.default, 0.8)
+    : alpha(theme.palette.background.default, 0.5),
+  backdropFilter: 'blur(10px)',
 }));
 
 const ScrollableContent = styled(Box)(({ theme }) => ({
   overflow: 'auto',
   maxHeight: 400,
   scrollbarWidth: 'thin',
+  scrollbarColor: theme.palette.mode === 'dark'
+    ? `${alpha(theme.palette.common.white, 0.3)} transparent`
+    : `${alpha(theme.palette.divider, 0.5)} transparent`,
   '&::-webkit-scrollbar': {
     width: '6px',
   },
@@ -143,9 +198,66 @@ const ScrollableContent = styled(Box)(({ theme }) => ({
     background: 'transparent',
   },
   '&::-webkit-scrollbar-thumb': {
-    background: alpha(theme.palette.divider, 0.2),
+    background: theme.palette.mode === 'dark'
+      ? alpha(theme.palette.common.white, 0.3)
+      : alpha(theme.palette.divider, 0.2),
     borderRadius: 3,
+    '&:hover': {
+      background: theme.palette.mode === 'dark'
+        ? alpha(theme.palette.common.white, 0.4)
+        : alpha(theme.palette.divider, 0.3),
+    },
   },
+}));
+
+const FooterActionBox = styled(Box)(({ theme }) => ({
+  display: 'flex', 
+  justifyContent: 'center', 
+  padding: theme.spacing(2), 
+  borderTop: `1px solid ${theme.palette.divider}`, 
+  backgroundColor: theme.palette.mode === 'dark'
+    ? alpha(theme.palette.background.default, 0.6)
+    : alpha(theme.palette.grey[50], 0.8),
+  backdropFilter: 'blur(10px)',
+}));
+
+const FooterActionButton = styled(Button)(({ theme }) => ({
+  minWidth: 180,
+  textTransform: 'none',
+  fontWeight: 600,
+  borderRadius: 25,
+  padding: theme.spacing(1, 3),
+  background: theme.palette.mode === 'dark'
+    ? `linear-gradient(45deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`
+    : `linear-gradient(45deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+  color: theme.palette.primary.contrastText,
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 4px 20px rgba(0, 0, 0, 0.3)'
+    : '0 4px 20px rgba(0, 0, 0, 0.15)',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    background: theme.palette.mode === 'dark'
+      ? `linear-gradient(45deg, ${theme.palette.primary.light} 0%, ${theme.palette.secondary.light} 100%)`
+      : `linear-gradient(45deg, ${alpha(theme.palette.primary.main, 0.9)} 0%, ${alpha(theme.palette.secondary.main, 0.9)} 100%)`,
+    transform: 'translateY(-2px)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 8px 30px rgba(0, 0, 0, 0.4)'
+      : '0 8px 30px rgba(0, 0, 0, 0.2)',
+  },
+}));
+
+const UnreadCountChip = styled(Box)(({ theme }) => ({
+  marginLeft: theme.spacing(1), 
+  paddingX: theme.spacing(1.2), 
+  paddingY: theme.spacing(0.2), 
+  backgroundColor: theme.palette.error.main, 
+  color: theme.palette.error.contrastText, 
+  borderRadius: 10, 
+  fontSize: '0.75rem',
+  fontWeight: 'bold',
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 2px 8px rgba(244, 67, 54, 0.4)'
+    : '0 2px 8px rgba(244, 67, 54, 0.3)',
 }));
 
 // 通知タイプに基づいてアイコンを返す関数
@@ -176,6 +288,7 @@ const formatTimeAgo = (date) => {
 };
 
 const NotificationMenu = () => {
+  const theme = useTheme();
   const navigate = useNavigate();
   const { notifications, unreadCount, loading, markAsRead, markAllAsRead, fetchNotifications } = useNotifications();
   const [anchorEl, setAnchorEl] = useState(null);
@@ -330,7 +443,10 @@ const NotificationMenu = () => {
               bgcolor: 'background.paper',
               transform: 'translateY(-50%) rotate(45deg)',
               zIndex: 0,
-              boxShadow: '-3px -3px 5px rgba(0,0,0,0.02)'
+              boxShadow: theme.palette.mode === 'dark'
+                ? '-3px -3px 8px rgba(0,0,0,0.1)'
+                : '-3px -3px 5px rgba(0,0,0,0.02)',
+              border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
             },
           },
         }}
@@ -343,21 +459,9 @@ const NotificationMenu = () => {
             <NotificationsIcon sx={{ mr: 1, fontSize: 20 }} />
             通知
             {unreadCount > 0 && (
-              <Box 
-                component="span" 
-                sx={{ 
-                  ml: 1, 
-                  px: 1.2, 
-                  py: 0.2, 
-                  bgcolor: 'error.main', 
-                  color: 'white', 
-                  borderRadius: 10, 
-                  fontSize: '0.75rem',
-                  fontWeight: 'bold'
-                }}
-              >
+              <UnreadCountChip component="span">
                 {unreadCount}
-              </Box>
+              </UnreadCountChip>
             )}
           </Typography>
           <ActionButton
@@ -390,7 +494,14 @@ const NotificationMenu = () => {
             </Box>
           ) : filteredNotifications.length === 0 ? (
             <EmptyState>
-              <NotificationsNoneIcon sx={{ fontSize: 48, opacity: 0.5, mb: 2, color: alpha('#000', 0.3) }} />
+              <NotificationsNoneIcon sx={{ 
+                fontSize: 48, 
+                opacity: 0.5, 
+                mb: 2, 
+                color: theme.palette.mode === 'dark' 
+                  ? alpha(theme.palette.common.white, 0.3) 
+                  : alpha(theme.palette.common.black, 0.3) 
+              }} />
               <Typography variant="body1" sx={{ mb: 1, fontWeight: 500 }}>
                 {activeTab === 1 ? '未読の通知はありません' : 
                  activeTab === 2 ? 'お知らせはありません' : '通知はありません'}
@@ -475,28 +586,18 @@ const NotificationMenu = () => {
           )}
         </ScrollableContent>
         
-        <Box 
-          sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            p: 2, 
-            borderTop: 1, 
-            borderColor: 'divider', 
-            bgcolor: alpha('#f5f5f5', 0.3)
-          }}
-        >
-          <ActionButton
+        <FooterActionBox>
+          <FooterActionButton
             color="primary"
             variant="contained"
             onClick={() => {
               handleClose();
               navigate('/notifications');
             }}
-            sx={{ minWidth: 180 }}
           >
             すべての通知を見る
-          </ActionButton>
-        </Box>
+          </FooterActionButton>
+        </FooterActionBox>
       </Menu>
     </>
   );

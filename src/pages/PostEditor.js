@@ -12,6 +12,7 @@ import {
   useTheme,
   useMediaQuery
 } from '@mui/material';
+import { styled, alpha } from '@mui/material/styles';
 
 import { 
   AutoAwesome as AutoAwesomeIcon,
@@ -393,44 +394,117 @@ const PostEditor = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Paper 
-        elevation={2} 
-        sx={{ 
-          p: 3, 
-          borderRadius: 3, 
-          mb: 4, 
-          background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography 
-            variant="h4" 
-            component="h1" 
-            gutterBottom
-            sx={{ 
-              fontWeight: 'bold',
-              display: 'flex',
-              alignItems: 'center'
-            }}
-          >
-            <AutoAwesomeIcon sx={{ mr: 1, color: 'primary.main' }} />
-            新しい作品を投稿
-          </Typography>
-          
-          <Button
-            variant="outlined"
-            color="inherit"
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/')}
-            sx={{ borderRadius: 2 }}
-          >
-            キャンセル
-          </Button>
-        </Box>
-        <Typography variant="subtitle1" color="text.secondary">
-          AIを活用したあなたのオリジナル作品を共有しましょう
-        </Typography>
-      </Paper>
+<Paper 
+  elevation={2} 
+  sx={{ 
+    p: 3, 
+    borderRadius: 3, 
+    mb: 4, 
+    background: (theme) => theme.palette.mode === 'dark'
+      ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.background.default} 100%)`
+      : 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+    border: (theme) => theme.palette.mode === 'dark'
+      ? `1px solid ${theme.palette.divider}`
+      : 'none',
+    boxShadow: (theme) => theme.palette.mode === 'dark'
+      ? '0 4px 20px rgba(0, 0, 0, 0.3)'
+      : '0 4px 20px rgba(0, 0, 0, 0.1)',
+    backdropFilter: (theme) => theme.palette.mode === 'dark' ? 'blur(10px)' : 'none',
+    position: 'relative',
+    overflow: 'hidden',
+    '&::before': (theme) => theme.palette.mode === 'dark' ? {
+      content: '""',
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: `linear-gradient(135deg, 
+        ${alpha(theme.palette.primary.main, 0.1)} 0%, 
+        ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
+      zIndex: 0,
+    } : {},
+  }}
+>
+  <Box sx={{ 
+    display: 'flex', 
+    alignItems: 'center', 
+    justifyContent: 'space-between',
+    position: 'relative',
+    zIndex: 1,
+  }}>
+    <Typography 
+      variant="h4" 
+      component="h1" 
+      gutterBottom
+      sx={{ 
+        fontWeight: 'bold',
+        display: 'flex',
+        alignItems: 'center',
+        color: (theme) => theme.palette.text.primary,
+        textShadow: (theme) => theme.palette.mode === 'dark'
+          ? `0 2px 4px ${alpha(theme.palette.common.black, 0.5)}`
+          : `0 2px 4px ${alpha(theme.palette.common.white, 0.8)}`,
+      }}
+    >
+      <AutoAwesomeIcon sx={{ 
+        mr: 1, 
+        color: 'primary.main',
+        filter: (theme) => theme.palette.mode === 'dark'
+          ? `drop-shadow(0 2px 4px ${alpha(theme.palette.primary.main, 0.3)})`
+          : 'none',
+      }} />
+      新しい作品を投稿
+    </Typography>
+    
+    <Button
+      variant="outlined"
+      color="inherit"
+      startIcon={<ArrowBackIcon />}
+      onClick={() => navigate('/')}
+      sx={{ 
+        borderRadius: 2,
+        backgroundColor: (theme) => theme.palette.mode === 'dark'
+          ? alpha(theme.palette.background.paper, 0.8)
+          : alpha(theme.palette.background.paper, 0.9),
+        borderColor: (theme) => theme.palette.mode === 'dark'
+          ? alpha(theme.palette.divider, 0.5)
+          : alpha(theme.palette.divider, 0.3),
+        color: (theme) => theme.palette.text.primary,
+        backdropFilter: 'blur(10px)',
+        position: 'relative',
+        zIndex: 1,
+        '&:hover': {
+          backgroundColor: (theme) => theme.palette.mode === 'dark'
+            ? alpha(theme.palette.background.paper, 1)
+            : alpha(theme.palette.background.paper, 1),
+          borderColor: (theme) => theme.palette.mode === 'dark'
+            ? theme.palette.divider
+            : theme.palette.primary.main,
+          transform: 'translateY(-2px)',
+          boxShadow: (theme) => theme.palette.mode === 'dark'
+            ? `0 6px 20px ${alpha(theme.palette.common.black, 0.3)}`
+            : `0 6px 20px ${alpha(theme.palette.common.black, 0.15)}`,
+        },
+      }}
+    >
+      キャンセル
+    </Button>
+  </Box>
+  <Typography 
+    variant="subtitle1" 
+    sx={{
+      color: (theme) => theme.palette.text.secondary,
+      position: 'relative',
+      zIndex: 1,
+      textShadow: (theme) => theme.palette.mode === 'dark'
+        ? `0 1px 2px ${alpha(theme.palette.common.black, 0.3)}`
+        : `0 1px 2px ${alpha(theme.palette.common.white, 0.6)}`,
+    }}
+  >
+    AIを活用したあなたのオリジナル作品を共有しましょう
+  </Typography>
+</Paper>
       
       {/* 基本情報セクション */}
       <BasicInfoSection 

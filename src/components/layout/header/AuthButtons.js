@@ -1,12 +1,12 @@
 import React, { useCallback, useState } from 'react';
-import { 
-  Button, 
-  Box, 
-  Avatar, 
-  Menu, 
-  MenuItem, 
-  ListItemIcon, 
-  Typography, 
+import {
+  Button,
+  Box,
+  Avatar,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  Typography,
   Divider,
   IconButton,
   Badge,
@@ -16,8 +16,8 @@ import {
 } from '@mui/material';
 import { Link, useNavigate } from 'react-router-dom';
 import { styled } from '@mui/material/styles';
-import { 
-  Create as CreateIcon, 
+import {
+  Create as CreateIcon,
   AccountCircle as AccountCircleIcon,
   Bookmark as BookmarkIcon,
   Settings as SettingsIcon,
@@ -81,7 +81,7 @@ const StyledMenuItem = styled(MenuItem)(({ theme }) => ({
   },
 }));
 
-const AuthButtons = React.memo(({user, auth, handleLogout, vertical = false }) => {
+const AuthButtons = React.memo(({ user, auth, handleLogout, vertical = false }) => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -93,15 +93,15 @@ const AuthButtons = React.memo(({user, auth, handleLogout, vertical = false }) =
     await handleLogout();
     navigate('/login');
   }, [handleLogout, navigate]);
-  
+
   const handleProfileClick = (event) => {
     setAnchorEl(event.currentTarget);
   };
-  
+
   const handleClose = () => {
     setAnchorEl(null);
   };
-  
+
   const handleMenuItemClick = (path, state = null) => {
     handleClose();
     if (state) {
@@ -111,7 +111,7 @@ const AuthButtons = React.memo(({user, auth, handleLogout, vertical = false }) =
     }
   };
 
-  
+
   // For vertical layout (used in mobile drawer)
   if (vertical) {
     return (
@@ -129,7 +129,7 @@ const AuthButtons = React.memo(({user, auth, handleLogout, vertical = false }) =
                 </Typography>
               </Box>
             </Box>
-            
+
             <PrimaryButton
               variant="contained"
               color="primary"
@@ -140,7 +140,7 @@ const AuthButtons = React.memo(({user, auth, handleLogout, vertical = false }) =
             >
               小説を投稿する
             </PrimaryButton>
-            
+
             <PrimaryButton
               variant="outlined"
               color="primary"
@@ -151,9 +151,9 @@ const AuthButtons = React.memo(({user, auth, handleLogout, vertical = false }) =
             >
               マイページ
             </PrimaryButton>
-            
+
             <Divider sx={{ my: 1 }} />
-            
+
             <PrimaryButton
               variant="outlined"
               color="error"
@@ -176,7 +176,7 @@ const AuthButtons = React.memo(({user, auth, handleLogout, vertical = false }) =
             >
               ログイン
             </PrimaryButton>
-            
+
             <PrimaryButton
               variant="outlined"
               color="primary"
@@ -192,25 +192,41 @@ const AuthButtons = React.memo(({user, auth, handleLogout, vertical = false }) =
       </Box>
     );
   }
-  
+
   // Default horizontal layout for header
   return (
     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-      <PrimaryButton
-        variant="contained"
-        color="secondary"
-        startIcon={<CreateIcon />}
-        component={Link}
-        to="/new-post"
-        sx={{ 
-          display: { xs: 'none', sm: 'flex' },
-          mr: 2,
-          backgroundColor: '#ff5722',
-          '&:hover': {
-            backgroundColor: '#f4511e',
-          }
-        }}
-      >
+<PrimaryButton
+  variant="contained"
+  color="secondary"
+  startIcon={<CreateIcon />}
+  component={Link}
+  to="/new-post"
+  sx={{ 
+    display: { xs: 'none', sm: 'flex' },
+    mr: 1.5, // 余白を調整
+    minWidth: 140, // 「小説投稿」が確実に横書きになる十分な幅を確保
+    width: 'auto',
+    whiteSpace: 'nowrap', // テキストの改行を防ぐ
+    overflow: 'visible', // テキストの表示を確実にする
+    textOverflow: 'clip', // 省略記号を表示しない
+    flexDirection: 'row', // 横方向の配置を強制
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0, // ボタン自体が縮まないようにする
+    backgroundColor: '#ff5722',
+    '&:hover': {
+      backgroundColor: '#f4511e',
+    },
+    '& .MuiButton-label': {
+      whiteSpace: 'nowrap',
+      overflow: 'visible',
+    },
+    '& .MuiButton-startIcon': {
+      flexShrink: 0, // アイコンのサイズを固定
+    }
+  }}
+>
         小説投稿
       </PrimaryButton>
 
@@ -221,7 +237,7 @@ const AuthButtons = React.memo(({user, auth, handleLogout, vertical = false }) =
               <UserAvatar src={user?.icon} alt={user?.nickname} />
             </IconButton>
           </Tooltip>
-          
+
           <Menu
             anchorEl={anchorEl}
             open={open}
@@ -265,40 +281,40 @@ const AuthButtons = React.memo(({user, auth, handleLogout, vertical = false }) =
                 {user?.role}
               </Typography>
             </Box>
-            
+
             <Divider />
-            
+
             <StyledMenuItem onClick={() => handleMenuItemClick('/mypage')}>
               <ListItemIcon>
                 <AccountCircleIcon fontSize="small" />
               </ListItemIcon>
               マイページ
             </StyledMenuItem>
-            
+
             <StyledMenuItem onClick={() => handleMenuItemClick('/mypage', { activeTab: 'bookshelf' })}>
               <ListItemIcon>
                 <BookmarkIcon fontSize="small" />
               </ListItemIcon>
               本棚
             </StyledMenuItem>
-            
-            
+
+
             <StyledMenuItem onClick={() => handleMenuItemClick('/settings')}>
               <ListItemIcon>
                 <SettingsIcon fontSize="small" />
               </ListItemIcon>
               設定
             </StyledMenuItem>
-            
+
             <StyledMenuItem onClick={() => handleMenuItemClick('/help')}>
               <ListItemIcon>
                 <HelpOutlineIcon fontSize="small" />
               </ListItemIcon>
               ヘルプ
             </StyledMenuItem>
-            
+
             <Divider />
-            
+
             <StyledMenuItem onClick={onLogout}>
               <ListItemIcon>
                 <ExitToAppIcon fontSize="small" color="error" />
@@ -319,14 +335,14 @@ const AuthButtons = React.memo(({user, auth, handleLogout, vertical = false }) =
           >
             ログイン
           </SecondaryButton>
-          
+
           <PrimaryButton
             variant="contained"
             color="secondary"
             startIcon={<PersonAddIcon />}
             component={Link}
             to="/register"
-            sx={{ 
+            sx={{
               backgroundColor: '#ff5722',
               '&:hover': {
                 backgroundColor: '#f4511e',

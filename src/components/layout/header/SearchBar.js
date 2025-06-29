@@ -32,17 +32,33 @@ import { useNavigate } from "react-router-dom";
 const SearchBox = styled(Paper)(({ theme, isFocused }) => ({
   position: "relative",
   borderRadius: 50,
-  backgroundColor: isFocused ? theme.palette.common.white : alpha(theme.palette.common.white, 0.9),
-  border: `1px solid ${isFocused ? theme.palette.primary.main : 'transparent'}`,
-  boxShadow: isFocused ? '0 4px 20px rgba(0, 0, 0, 0.1)' : 'none',
+  backgroundColor: isFocused 
+    ? theme.palette.background.paper 
+    : theme.palette.mode === 'dark'
+      ? alpha(theme.palette.background.paper, 0.8)
+      : alpha(theme.palette.common.white, 0.9),
+  border: `1px solid ${isFocused 
+    ? theme.palette.primary.main 
+    : theme.palette.mode === 'dark'
+      ? alpha(theme.palette.divider, 0.3)
+      : 'transparent'}`,
+  boxShadow: isFocused 
+    ? theme.palette.mode === 'dark'
+      ? '0 4px 20px rgba(0, 0, 0, 0.4)'
+      : '0 4px 20px rgba(0, 0, 0, 0.1)'
+    : 'none',
   width: "100%",
   maxWidth: "600px",
   display: "flex",
   alignItems: "center",
   transition: "all 0.2s ease-in-out",
+  backdropFilter: theme.palette.mode === 'dark' ? 'blur(10px)' : 'none',
   '&:hover': {
-    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
-    backgroundColor: theme.palette.common.white,
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 2px 15px rgba(0, 0, 0, 0.3)'
+      : '0 2px 10px rgba(0, 0, 0, 0.1)',
+    backgroundColor: theme.palette.background.paper,
+    border: `1px solid ${alpha(theme.palette.primary.main, 0.5)}`,
   },
 }));
 
@@ -85,18 +101,47 @@ const SearchButton = styled(Button)(({ theme }) => ({
   marginLeft: theme.spacing(1),
   marginRight: theme.spacing(0.5),
   transition: 'all 0.2s',
+  minWidth: 80,
+  width: 'auto',
+  whiteSpace: 'nowrap',
+  overflow: 'visible',
+  textOverflow: 'clip',
+  display: 'inline-flex',
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+  background: theme.palette.mode === 'dark'
+    ? `linear-gradient(45deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`
+    : `linear-gradient(45deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+  color: theme.palette.primary.contrastText,
   '&:hover': {
-    boxShadow: '0 4px 12px rgba(30, 68, 157, 0.3)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 4px 12px rgba(0, 0, 0, 0.4)'
+      : '0 4px 12px rgba(30, 68, 157, 0.3)',
     transform: 'translateY(-2px)',
+    background: theme.palette.mode === 'dark'
+      ? `linear-gradient(45deg, ${theme.palette.primary.light} 0%, ${theme.palette.secondary.light} 100%)`
+      : `linear-gradient(45deg, ${alpha(theme.palette.primary.main, 0.9)} 0%, ${alpha(theme.palette.secondary.main, 0.9)} 100%)`,
   },
+  '& .MuiButton-label': {
+    whiteSpace: 'nowrap',
+    overflow: 'visible',
+  }
 }));
 
 const ClearButton = styled(IconButton)(({ theme }) => ({
   padding: 6,
   marginRight: theme.spacing(1),
   color: theme.palette.text.secondary,
+  backgroundColor: theme.palette.mode === 'dark'
+    ? alpha(theme.palette.background.paper, 0.1)
+    : 'transparent',
   '&:hover': {
-    backgroundColor: alpha(theme.palette.primary.main, 0.08),
+    backgroundColor: theme.palette.mode === 'dark'
+      ? alpha(theme.palette.primary.main, 0.15)
+      : alpha(theme.palette.primary.main, 0.08),
+    color: theme.palette.primary.main,
   },
 }));
 
@@ -105,7 +150,9 @@ const SuggestionPopper = styled(Popper)(({ theme }) => ({
   zIndex: 1200,
   width: '100%',
   maxWidth: 600,
-  boxShadow: '0 8px 20px rgba(0, 0, 0, 0.15)',
+  boxShadow: theme.palette.mode === 'dark'
+    ? '0 12px 30px rgba(0, 0, 0, 0.4)'
+    : '0 8px 20px rgba(0, 0, 0, 0.15)',
   borderRadius: 12,
   overflow: 'hidden',
   marginTop: 8,
@@ -114,25 +161,96 @@ const SuggestionPopper = styled(Popper)(({ theme }) => ({
 const SuggestionContent = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(2),
   backgroundColor: theme.palette.background.paper,
+  border: theme.palette.mode === 'dark'
+    ? `1px solid ${alpha(theme.palette.divider, 0.2)}`
+    : `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+  backdropFilter: theme.palette.mode === 'dark' ? 'blur(20px)' : 'none',
 }));
 
-const TrendingChip = styled(Chip)(({ theme, index }) => ({
-  backgroundColor: index === 0 
-    ? alpha(theme.palette.error.main, 0.1)
-    : alpha(theme.palette.primary.main, 0.05),
-  color: index === 0 ? theme.palette.error.main : theme.palette.primary.main,
-  border: 'none',
-  fontWeight: index < 2 ? 'bold' : 'normal',
-  margin: theme.spacing(0.5),
-  transition: 'all 0.2s',
+const TrendingChip = styled(Chip)(({ theme, index }) => {
+  const isTop = index === 0;
+  const baseColor = isTop ? theme.palette.error.main : theme.palette.primary.main;
+  
+  return {
+    backgroundColor: theme.palette.mode === 'dark'
+      ? alpha(baseColor, 0.2)
+      : alpha(baseColor, isTop ? 0.1 : 0.05),
+    color: theme.palette.mode === 'dark'
+      ? (isTop ? theme.palette.error.light : theme.palette.primary.light)
+      : baseColor,
+    border: theme.palette.mode === 'dark'
+      ? `1px solid ${alpha(baseColor, 0.3)}`
+      : 'none',
+    fontWeight: index < 2 ? 'bold' : 'normal',
+    margin: theme.spacing(0.5),
+    transition: 'all 0.2s',
+    backdropFilter: theme.palette.mode === 'dark' ? 'blur(10px)' : 'none',
+    '&:hover': {
+      backgroundColor: theme.palette.mode === 'dark'
+        ? alpha(baseColor, 0.3)
+        : alpha(baseColor, isTop ? 0.2 : 0.1),
+      transform: 'translateY(-2px)',
+      boxShadow: theme.palette.mode === 'dark'
+        ? `0 4px 12px ${alpha(baseColor, 0.3)}`
+        : `0 2px 8px ${alpha(baseColor, 0.2)}`,
+    },
+    '& .MuiChip-icon': {
+      color: 'inherit',
+    }
+  };
+});
+
+const SectionHeader = styled(Typography)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  color: theme.palette.text.secondary,
+  fontWeight: 600,
+  marginBottom: theme.spacing(1),
+  '& .MuiSvgIcon-root': {
+    marginRight: theme.spacing(0.5),
+    fontSize: 16,
+    color: theme.palette.mode === 'dark'
+      ? theme.palette.primary.light
+      : theme.palette.primary.main,
+  }
+}));
+
+const HistoryListItem = styled(ListItem)(({ theme }) => ({
+  borderRadius: theme.spacing(1),
+  padding: theme.spacing(0.5),
+  transition: 'all 0.2s ease',
   '&:hover': {
-    backgroundColor: index === 0 
-      ? alpha(theme.palette.error.main, 0.2)
-      : alpha(theme.palette.primary.main, 0.1),
-    transform: 'translateY(-2px)',
+    backgroundColor: theme.palette.mode === 'dark'
+      ? alpha(theme.palette.primary.main, 0.15)
+      : alpha(theme.palette.primary.main, 0.08),
+    transform: 'translateX(4px)',
   },
-  '& .MuiChip-icon': {
-    color: 'inherit',
+  '& .MuiSvgIcon-root': {
+    marginRight: theme.spacing(1.5),
+    color: theme.palette.text.secondary,
+    fontSize: 18,
+  }
+}));
+
+const ClearHistoryButton = styled(Button)(({ theme }) => ({
+  minWidth: 'auto',
+  fontSize: '0.7rem',
+  color: theme.palette.text.secondary,
+  padding: theme.spacing(0.5, 1),
+  borderRadius: theme.spacing(1),
+  '&:hover': {
+    backgroundColor: theme.palette.mode === 'dark'
+      ? alpha(theme.palette.error.main, 0.1)
+      : alpha(theme.palette.error.main, 0.05),
+    color: theme.palette.error.main,
+  }
+}));
+
+const TrendingSection = styled(Box)(({ theme }) => ({
+  '& .trending-chips': {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: theme.spacing(0.5),
   }
 }));
 
@@ -313,53 +431,55 @@ const SearchBar = () => {
                 {recentSearches.length > 0 && (
                   <Box sx={{ mb: 2 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                      <Typography variant="subtitle2" color="textSecondary" sx={{ display: 'flex', alignItems: 'center' }}>
-                        <HistoryIcon fontSize="small" sx={{ mr: 0.5, fontSize: 16 }} />
+                      <SectionHeader variant="subtitle2">
+                        <HistoryIcon />
                         最近の検索
-                      </Typography>
-                      <Button 
-                        size="small" 
-                        onClick={handleClearHistory}
-                        sx={{ minWidth: 'auto', fontSize: '0.7rem' }}
-                      >
+                      </SectionHeader>
+                      <ClearHistoryButton onClick={handleClearHistory}>
                         履歴を消去
-                      </Button>
+                      </ClearHistoryButton>
                     </Box>
                     <List disablePadding>
                       {recentSearches.map((search, index) => (
-                        <ListItem 
+                        <HistoryListItem 
                           key={`recent-${index}`}
                           dense
                           button
                           onClick={() => handleSuggestionClick(search)}
-                          sx={{ 
-                            borderRadius: 1,
-                            py: 0.5,
-                            '&:hover': {
-                              backgroundColor: alpha(theme.palette.primary.main, 0.08),
-                            }
-                          }}
                         >
-                          <HistoryIcon fontSize="small" sx={{ mr: 1.5, color: 'text.secondary', fontSize: 18 }} />
+                          <HistoryIcon />
                           <ListItemText 
                             primary={search ? search.toString() : ''}
-                            primaryTypographyProps={{ variant: 'body2' }}
+                            primaryTypographyProps={{ 
+                              variant: 'body2',
+                              sx: { 
+                                color: theme.palette.text.primary,
+                                fontWeight: 500 
+                              } 
+                            }}
                           />
-                        </ListItem>
+                        </HistoryListItem>
                       ))}
                     </List>
                   </Box>
                 )}
                 
+                {recentSearches.length > 0 && (
+                  <Divider sx={{ 
+                    my: 2,
+                    borderColor: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.divider, 0.2)
+                      : alpha(theme.palette.divider, 0.1)
+                  }} />
+                )}
+                
                 {/* Trending searches */}
-                <Box>
-                  <Box sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                    <TrendingUpIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', fontSize: 16 }} />
-                    <Typography variant="subtitle2" color="textSecondary">
-                      トレンド検索
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
+                <TrendingSection>
+                  <SectionHeader variant="subtitle2">
+                    <TrendingUpIcon />
+                    トレンド検索
+                  </SectionHeader>
+                  <Box className="trending-chips">
                     {tags.map((tag, index) => (
                       <TrendingChip
                         key={`trend-${index}`}
@@ -371,7 +491,7 @@ const SearchBar = () => {
                       />
                     ))}
                   </Box>
-                </Box>
+                </TrendingSection>
               </SuggestionContent>
             </Fade>
           )}

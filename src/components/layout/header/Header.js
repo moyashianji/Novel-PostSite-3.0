@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  AppBar, 
-  Toolbar, 
-  IconButton, 
-  Badge, 
-  Box, 
+import {
+  AppBar,
+  Toolbar,
+  IconButton,
+  Badge,
+  Box,
   useScrollTrigger,
   Container,
   Slide,
@@ -51,7 +51,7 @@ const Header = React.memo(({ auth, handleLogout, user }) => {
   const [userLoading, setUserLoading] = useState(false);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
+
   // ユーザー情報の状態をチェック
   useEffect(() => {
     // auth=trueだけどユーザー情報がない場合にローディング表示
@@ -61,7 +61,7 @@ const Header = React.memo(({ auth, handleLogout, user }) => {
       setUserLoading(false);
     }
   }, [auth, user]);
-  
+
   // Add elevation to AppBar after scrolling
   useEffect(() => {
     const handleScroll = () => {
@@ -71,11 +71,11 @@ const Header = React.memo(({ auth, handleLogout, user }) => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-  
+
   const toggleDrawer = () => {
     setDrawerOpen(!drawerOpen);
   };
-  
+
   const drawerItems = [
     { text: 'ホーム', icon: <HomeIcon />, link: '/' },
     { text: '探索', icon: <ExploreIcon />, link: '/explore' },
@@ -88,12 +88,12 @@ const Header = React.memo(({ auth, handleLogout, user }) => {
   return (
     <>
       <HideOnScroll>
-        <AppBar 
-          position="fixed" 
+        <AppBar
+          position="fixed"
           elevation={elevated ? 4 : 0}
-          sx={{ 
-            background: elevated 
-              ? 'linear-gradient(90deg, rgba(28,55,99,1) 0%, rgba(54,94,168,1) 100%)' 
+          sx={{
+            background: elevated
+              ? 'linear-gradient(90deg, rgba(28,55,99,1) 0%, rgba(54,94,168,1) 100%)'
               : 'linear-gradient(90deg, rgba(25,55,102,0.95) 0%, rgba(54,94,168,0.95) 100%)',
             backdropFilter: 'blur(8px)',
             transition: 'all 0.3s ease',
@@ -101,8 +101,8 @@ const Header = React.memo(({ auth, handleLogout, user }) => {
           }}
         >
           <Container maxWidth="xl">
-            <Toolbar sx={{ 
-              py: 0.5, 
+            <Toolbar sx={{
+              py: 0.5,
               justifyContent: 'space-between',
               '&.MuiToolbar-root': {
                 minHeight: elevated ? 64 : 70,
@@ -110,9 +110,9 @@ const Header = React.memo(({ auth, handleLogout, user }) => {
               }
             }}>
               {isMobile && (
-                <IconButton 
-                  edge="start" 
-                  color="inherit" 
+                <IconButton
+                  edge="start"
+                  color="inherit"
                   aria-label="menu"
                   onClick={toggleDrawer}
                   sx={{ mr: 1 }}
@@ -120,23 +120,24 @@ const Header = React.memo(({ auth, handleLogout, user }) => {
                   <MenuIcon />
                 </IconButton>
               )}
-              
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
+
+              <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
                 flexShrink: 0,
                 mr: isMobile ? 1 : 3
               }}>
                 <Logo />
               </Box>
-              
+
               {!isMobile && <SearchBar />}
-              
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <IconButton 
-                  color="inherit" 
-                  sx={{ 
-                    marginRight: 1,
+
+
+              {/* 修正後のコード */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <IconButton
+                  color="inherit"
+                  sx={{
                     position: 'relative',
                     '&::after': auth ? {
                       content: '""',
@@ -152,16 +153,19 @@ const Header = React.memo(({ auth, handleLogout, user }) => {
                 >
                   {auth && <NotificationMenu />}
                 </IconButton>
+
                 <RankingButton isMobile={isMobile} />
 
-                {userLoading ? (
-                  <CircularProgress color="inherit" size={24} sx={{ mr: 2 }} />
-                ) : (
-                  <AuthButtons user={user} auth={auth} handleLogout={handleLogout} />
-                )}
+                <Box sx={{ ml: 1 }}>
+                  {userLoading ? (
+                    <CircularProgress color="inherit" size={24} />
+                  ) : (
+                    <AuthButtons user={user} auth={auth} handleLogout={handleLogout} />
+                  )}
+                </Box>
               </Box>
             </Toolbar>
-            
+
             {isMobile && (
               <Box sx={{ px: 2, pb: 2 }}>
                 <SearchBar />
@@ -170,14 +174,14 @@ const Header = React.memo(({ auth, handleLogout, user }) => {
           </Container>
         </AppBar>
       </HideOnScroll>
-      
+
       {/* Mobile navigation drawer */}
       <Drawer
         anchor="left"
         open={drawerOpen}
         onClose={toggleDrawer}
         sx={{
-          '& .MuiDrawer-paper': { 
+          '& .MuiDrawer-paper': {
             width: 280,
             backgroundImage: 'linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)), url("/paper-texture.png")',
             backgroundBlendMode: 'overlay',
@@ -187,15 +191,15 @@ const Header = React.memo(({ auth, handleLogout, user }) => {
         <Box sx={{ py: 2, px: 1, display: 'flex', justifyContent: 'center' }}>
           <Logo />
         </Box>
-        
+
         <Divider />
-        
+
         <List>
           {drawerItems.map((item, index) => (
-            <ListItem 
-              button 
-              component={Link} 
-              to={item.link} 
+            <ListItem
+              button
+              component={Link}
+              to={item.link}
               key={item.text}
               onClick={toggleDrawer}
               sx={{
@@ -214,9 +218,9 @@ const Header = React.memo(({ auth, handleLogout, user }) => {
             </ListItem>
           ))}
         </List>
-        
+
         <Divider sx={{ my: 1 }} />
-        
+
         <Box sx={{ p: 2 }}>
           {userLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
@@ -227,7 +231,7 @@ const Header = React.memo(({ auth, handleLogout, user }) => {
           )}
         </Box>
       </Drawer>
-      
+
       {/* Add spacing below the AppBar to prevent content from hiding underneath */}
       <Toolbar sx={{ mb: 2 }} />
       {isMobile && <Toolbar sx={{ mb: 1 }} />}
