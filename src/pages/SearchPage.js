@@ -1,7 +1,7 @@
 import React from "react";
 import { Container } from "@mui/material";
 import SearchFilters from "../components/search/SearchFilters";
-import SearchResults from "../components/search/SearchResults"; // 🔥 追加
+import SearchResults from "../pages/SearchResults"; // 🔥 追加
 
 const SearchPage = () => {
   return (
