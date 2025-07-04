@@ -32,6 +32,77 @@ import ContestTagCloud from "../components/search/clouds/ContestTagCloud";
 import SearchResultsContent from "../components/search/content/SearchResultsContent";
 import SearchResultsInfo from "../components/search/content/SearchResultsInfo";
 import SearchPagination from "../components/search/content/SearchPagination";
+import DetailedSortModal from "../components/search/DetailedSortModal";
+
+// 詳細フィルター適用関数（作品用）
+const applyDetailedPostsFilter = (posts, detailedFilters) => {
+  if (!posts || !Array.isArray(posts)) return [];
+  
+  let filteredPosts = [...posts];
+  
+  if (detailedFilters.minWordCount) {
+    filteredPosts = filteredPosts.filter(post => 
+      post.wordCount >= detailedFilters.minWordCount
+    );
+  }
+  
+  if (detailedFilters.maxWordCount) {
+    filteredPosts = filteredPosts.filter(post => 
+      post.wordCount <= detailedFilters.maxWordCount
+    );
+  }
+  
+  if (detailedFilters.startDate) {
+    filteredPosts = filteredPosts.filter(post => 
+      new Date(post.createdAt) >= detailedFilters.startDate
+    );
+  }
+  
+  if (detailedFilters.endDate) {
+    const endOfDay = new Date(detailedFilters.endDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    filteredPosts = filteredPosts.filter(post => 
+      new Date(post.createdAt) <= endOfDay
+    );
+  }
+  
+  return filteredPosts;
+};
+
+// 詳細フィルター適用関数（シリーズ用）
+const applyDetailedSeriesFilter = (series, detailedFilters) => {
+  if (!series || !Array.isArray(series)) return [];
+  
+  let filteredSeries = [...series];
+  
+  if (detailedFilters.minWorksCount) {
+    filteredSeries = filteredSeries.filter(s => 
+      s.worksCount >= detailedFilters.minWorksCount
+    );
+  }
+  
+  if (detailedFilters.maxWorksCount) {
+    filteredSeries = filteredSeries.filter(s => 
+      s.worksCount <= detailedFilters.maxWorksCount
+    );
+  }
+  
+  if (detailedFilters.seriesStartDate) {
+    filteredSeries = filteredSeries.filter(s => 
+      new Date(s.createdAt) >= detailedFilters.seriesStartDate
+    );
+  }
+  
+  if (detailedFilters.seriesEndDate) {
+    const endOfDay = new Date(detailedFilters.seriesEndDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    filteredSeries = filteredSeries.filter(s => 
+      new Date(s.createdAt) <= endOfDay
+    );
+  }
+  
+  return filteredSeries;
+};
 
 const SearchResults = () => {
   const location = useLocation();
@@ -52,6 +123,21 @@ const SearchResults = () => {
   const [postTypeFilter, setPostTypeFilter] = useState(searchParams.postType || "all");
   const [lengthFilter, setLengthFilter] = useState(searchParams.length || "all");
   const [seriesStatusFilter, setSeriesStatusFilter] = useState(searchParams.seriesStatus || "all");
+  
+  // 詳細設定モーダルの状態管理
+  const [detailedModalOpen, setDetailedModalOpen] = useState(false);
+  const [detailedFilters, setDetailedFilters] = useState({
+    // 作品用フィルター
+    minWordCount: searchParams.minWordCount || null,
+    maxWordCount: searchParams.maxWordCount || null,
+    startDate: searchParams.startDate || null,
+    endDate: searchParams.endDate || null,
+    // シリーズ用フィルター
+    minWorksCount: searchParams.minWorksCount || null,
+    maxWorksCount: searchParams.maxWorksCount || null,
+    seriesStartDate: searchParams.seriesStartDate || null,
+    seriesEndDate: searchParams.seriesEndDate || null,
+  });
 
   // カスタムフックから検索データを取得
   const {
@@ -70,20 +156,61 @@ const SearchResults = () => {
     handleFollowToggle
   } = useSearchData(searchParams, tab);
 
-  // すべてのフィルターが適用された後のデータセットを取得
+  // 詳細フィルターが有効かどうかを判定
+  const hasActiveDetailedFilters = useMemo(() => {
+    if (tab === 'posts') {
+      return !!(
+        detailedFilters.minWordCount ||
+        detailedFilters.maxWordCount ||
+        detailedFilters.startDate ||
+        detailedFilters.endDate
+      );
+    } else if (tab === 'series') {
+      return !!(
+        detailedFilters.minWorksCount ||
+        detailedFilters.maxWorksCount ||
+        detailedFilters.seriesStartDate ||
+        detailedFilters.seriesEndDate
+      );
+    }
+    return false;
+  }, [tab, detailedFilters]);
+
+  // 詳細フィルター適用済みデータ（年齢フィルター適用済みデータに対して詳細フィルターを適用）
+  const detailedFilteredData = useMemo(() => {
+    if (tab === 'users') return { all: usersData, general: [], r18: [] };
+    
+    const sourceData = tab === 'posts' ? postsData : seriesData;
+    
+    if (!hasActiveDetailedFilters) {
+      // 詳細フィルターが無効な場合は元のデータをそのまま返す
+      return sourceData;
+    }
+    
+    // 詳細フィルターを適用
+    const applyDetailedFilter = tab === 'posts' ? applyDetailedPostsFilter : applyDetailedSeriesFilter;
+    
+    return {
+      all: applyDetailedFilter(sourceData.all, detailedFilters),
+      general: applyDetailedFilter(sourceData.general, detailedFilters),
+      r18: applyDetailedFilter(sourceData.r18, detailedFilters),
+      totalCounts: sourceData.totalCounts // 元の総数は保持
+    };
+  }, [tab, postsData, seriesData, usersData, hasActiveDetailedFilters, detailedFilters]);
+
+  // すべてのフィルターが適用された後のデータセットを取得（既存ロジックを維持）
   const getCurrentDataset = useMemo(() => {
     if (tab === 'users') return usersData;
     
-    // データソースの選択
-    const dataSource = tab === 'posts' ? postsData : seriesData;
-    let filteredData = dataSource[ageFilter] || [];
+    // 詳細フィルター適用済みデータから年齢フィルターでデータを選択
+    let filteredData = detailedFilteredData[ageFilter] || [];
     
-    // 追加フィルター
+    // 既存のフィルター適用（作品タイプ、文字数、シリーズ状態）
     if (tab === 'posts') {
       // 作品タイプでフィルタリング
       filteredData = getPostsByType(filteredData, postTypeFilter);
       
-      // 文字数でフィルタリング
+      // 文字数でフィルタリング（既存の文字数フィルターとは別の機能）
       filteredData = getPostsByLength(filteredData, lengthFilter);
     } else if (tab === 'series') {
       // シリーズ状態でフィルタリング
@@ -98,21 +225,20 @@ const SearchResults = () => {
     postTypeFilter, 
     lengthFilter, 
     seriesStatusFilter, 
-    postsData, 
-    seriesData, 
+    detailedFilteredData, 
     usersData, 
     sortOption,
     searchParams.contestTag
   ]);
-  
-  // 各フィルター適用後の正確な件数を計算する関数
+
+  // 各フィルター適用後の正確な件数を計算する関数（詳細フィルターを考慮）
   const getTotalFilteredCount = useCallback(() => {
     if (tab === 'users') return usersData.length;
     
-    const dataSource = tab === 'posts' ? postsData : seriesData;
-    let baseData = dataSource[ageFilter] || [];
+    // 詳細フィルター適用済みデータから年齢フィルターでデータを選択
+    let baseData = detailedFilteredData[ageFilter] || [];
     
-    // 追加フィルターの適用
+    // 既存フィルターの適用
     if (tab === 'posts') {
       // 作品タイプでフィルタリング
       baseData = getPostsByType(baseData, postTypeFilter);
@@ -131,12 +257,102 @@ const SearchResults = () => {
     postTypeFilter,
     lengthFilter,
     seriesStatusFilter,
-    postsData,
-    seriesData,
+    detailedFilteredData,
     usersData
   ]);
 
-  // 総ページ数の計算（データ読み込み中は現在のページを最小値とする）
+  // 詳細設定モーダルを開く
+  const handleOpenDetailedModal = () => {
+    setDetailedModalOpen(true);
+  };
+
+  // 詳細設定モーダルを閉じる
+  const handleCloseDetailedModal = () => {
+    setDetailedModalOpen(false);
+  };
+
+  // 詳細フィルターを適用
+  const handleApplyDetailedFilters = (filters) => {
+    setDetailedFilters(filters);
+    setCurrentPage(1);
+    
+    // URLにフィルターパラメータを追加
+    const updatedParams = new URLSearchParams(location.search);
+    
+    if (tab === 'posts') {
+      // 作品用パラメータ
+      if (filters.minWordCount) {
+        updatedParams.set("minWordCount", filters.minWordCount.toString());
+      } else {
+        updatedParams.delete("minWordCount");
+      }
+      
+      if (filters.maxWordCount) {
+        updatedParams.set("maxWordCount", filters.maxWordCount.toString());
+      } else {
+        updatedParams.delete("maxWordCount");
+      }
+      
+      if (filters.startDate) {
+        updatedParams.set("startDate", filters.startDate.toISOString());
+      } else {
+        updatedParams.delete("startDate");
+      }
+      
+      if (filters.endDate) {
+        updatedParams.set("endDate", filters.endDate.toISOString());
+      } else {
+        updatedParams.delete("endDate");
+      }
+    } else if (tab === 'series') {
+      // シリーズ用パラメータ
+      if (filters.minWorksCount) {
+        updatedParams.set("minWorksCount", filters.minWorksCount.toString());
+      } else {
+        updatedParams.delete("minWorksCount");
+      }
+      
+      if (filters.maxWorksCount) {
+        updatedParams.set("maxWorksCount", filters.maxWorksCount.toString());
+      } else {
+        updatedParams.delete("maxWorksCount");
+      }
+      
+      if (filters.seriesStartDate) {
+        updatedParams.set("seriesStartDate", filters.seriesStartDate.toISOString());
+      } else {
+        updatedParams.delete("seriesStartDate");
+      }
+      
+      if (filters.seriesEndDate) {
+        updatedParams.set("seriesEndDate", filters.seriesEndDate.toISOString());
+      } else {
+        updatedParams.delete("seriesEndDate");
+      }
+    }
+    
+    updatedParams.set("page", "1");
+    navigate({ search: updatedParams.toString() }, { replace: true });
+  };
+
+  // アクティブな詳細フィルターの数を計算
+  const getActiveDetailedFiltersCount = () => {
+    let count = 0;
+    if (tab === 'posts') {
+      if (detailedFilters.minWordCount) count++;
+      if (detailedFilters.maxWordCount) count++;
+      if (detailedFilters.startDate) count++;
+      if (detailedFilters.endDate) count++;
+    } else if (tab === 'series') {
+      if (detailedFilters.minWorksCount) count++;
+      if (detailedFilters.maxWorksCount) count++;
+      if (detailedFilters.seriesStartDate) count++;
+      if (detailedFilters.seriesEndDate) count++;
+    }
+    return count;
+  };
+
+  // 総ページ数の計算
   const totalPages = useMemo(() => {
     const totalItems = getTotalFilteredCount();
     const calculatedPages = calculateTotalPages(totalItems, pageSize);
@@ -149,27 +365,8 @@ const SearchResults = () => {
     
     return calculatedPages;
   }, [getTotalFilteredCount, pageSize, loading, currentPage]);
-  
-  // currentPageがtotalPagesを超える場合に調整（データ読み込み後のみ）
-  useEffect(() => {
-    // データがまだ読み込まれていない場合は処理をスキップ
-    const hasData = (tab === 'posts' && postsData.all.length > 0) ||
-                   (tab === 'series' && seriesData.all.length > 0) ||
-                   (tab === 'users' && usersData.length > 0);
-    
-    if (!hasData || loading) return;
-    
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(totalPages);
-      
-      // URLも更新
-      const updatedParams = new URLSearchParams(location.search);
-      updatedParams.set("page", totalPages.toString());
-      navigate({ search: updatedParams.toString() }, { replace: true });
-    }
-  }, [currentPage, totalPages, location.search, navigate, tab, postsData.all.length, seriesData.all.length, usersData.length, loading]);
 
-  // 現在のページに表示するデータを計算
+  // ページネーション用データの更新
   useEffect(() => {
     const dataset = getCurrentDataset;
     const startIndex = (currentPage - 1) * pageSize;
@@ -190,45 +387,39 @@ const SearchResults = () => {
     return calculateResultsInfo(currentPage, pageSize, totalCount);
   }, [currentPage, pageSize, getTotalFilteredCount]);
 
-  // ページネーション処理
+  // 既存のハンドラー関数の実装
   const handlePageChange = useCallback((event, newPage) => {
     setCurrentPage(newPage);
     
-    // URLも更新（ページ変更時はreplace: falseで履歴に残す）
     const updatedParams = new URLSearchParams(location.search);
     updatedParams.set("page", newPage.toString());
     navigate({ search: updatedParams.toString() });
     
-    // ページトップにスクロール
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.search, navigate]);
 
-  // ページサイズ変更処理
   const handlePageSizeChange = useCallback((event) => {
     const newSize = parseInt(event.target.value);
     setPageSize(newSize);
-    setCurrentPage(1); // ページサイズ変更時はページを1に戻す
+    setCurrentPage(1);
     
-    // URLも更新
     const updatedParams = new URLSearchParams(location.search);
     updatedParams.set("size", newSize.toString());
     updatedParams.set("page", "1");
     navigate({ search: updatedParams.toString() }, { replace: true });
   }, [location.search, navigate]);
 
-  // タブ切り替え処理
   const handleTabChange = useCallback((event, newValue) => {
     const updatedParams = new URLSearchParams(location.search);
     updatedParams.set("type", newValue);
     updatedParams.set("page", "1");
     
-    // タブに応じてデフォルトの検索フィールドを設定
     if (newValue === "users") {
       updatedParams.set("fields", "nickname,favoriteAuthors");
       updatedParams.set("tagSearchType", "exact");
     } else if (newValue === "series") {
       updatedParams.set("fields", "title,description,tags");
-    } else { // posts
+    } else {
       updatedParams.set("fields", "title,content,tags");
     }
 
@@ -236,11 +427,9 @@ const SearchResults = () => {
     setCurrentPage(1);
     navigate({ search: updatedParams.toString() });
     
-    // ページトップにスクロール
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.search, navigate]);
 
-  // 年齢制限フィルター切り替え処理
   const handleAgeFilterChange = useCallback((event, newValue) => {
     const updatedParams = new URLSearchParams(location.search);
     updatedParams.set("ageFilter", newValue);
@@ -249,13 +438,11 @@ const SearchResults = () => {
     setCurrentPage(1);
     navigate({ search: updatedParams.toString() }, { replace: true });
     
-    // ページトップにスクロール
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.search, navigate]);
 
-  // ソートオプション切り替え処理
   const handleSortChange = useCallback((event, newValue) => {
-    if (newValue === null) return; // タブクリック時にnullが来た場合は無視
+    if (newValue === null) return;
     
     const updatedParams = new URLSearchParams(location.search);
     updatedParams.set("sortBy", newValue);
@@ -264,11 +451,9 @@ const SearchResults = () => {
     setCurrentPage(1);
     navigate({ search: updatedParams.toString() }, { replace: true });
     
-    // ページトップにスクロール
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.search, navigate]);
 
-  // 作品タイプフィルター変更ハンドラー
   const handlePostTypeFilterChange = useCallback((event, newValue) => {
     const updatedParams = new URLSearchParams(location.search);
     updatedParams.set("postType", newValue);
@@ -277,11 +462,9 @@ const SearchResults = () => {
     setCurrentPage(1);
     navigate({ search: updatedParams.toString() }, { replace: true });
     
-    // ページトップにスクロール
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.search, navigate]);
-  
-  // 文字数フィルター変更ハンドラー
+
   const handleLengthFilterChange = useCallback((event, newValue) => {
     const updatedParams = new URLSearchParams(location.search);
     updatedParams.set("length", newValue);
@@ -290,11 +473,9 @@ const SearchResults = () => {
     setCurrentPage(1);
     navigate({ search: updatedParams.toString() }, { replace: true });
     
-    // ページトップにスクロール
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.search, navigate]);
-  
-  // シリーズ状態フィルター変更ハンドラー
+
   const handleSeriesStatusFilterChange = useCallback((event, newValue) => {
     const updatedParams = new URLSearchParams(location.search);
     updatedParams.set("seriesStatus", newValue);
@@ -303,24 +484,26 @@ const SearchResults = () => {
     setCurrentPage(1);
     navigate({ search: updatedParams.toString() }, { replace: true });
     
-    // ページトップにスクロール
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.search, navigate]);
 
-  // タグクリックハンドラー
   const handleTagClick = useCallback((tag) => {
-    // 検索クエリを更新
     const updatedParams = new URLSearchParams(location.search);
     updatedParams.set("mustInclude", tag);
     updatedParams.set("page", "1");
     navigate({ search: updatedParams.toString() });
   }, [location.search, navigate]);
 
-  // AIツールクリックハンドラー
   const handleAiToolClick = useCallback((tool) => {
-    // 検索クエリを更新
     const updatedParams = new URLSearchParams(location.search);
     updatedParams.set("aiTool", tool);
+    updatedParams.set("page", "1");
+    navigate({ search: updatedParams.toString() });
+  }, [location.search, navigate]);
+
+  const handleContestTagClick = useCallback((tag) => {
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.set("contestTag", tag);
     updatedParams.set("page", "1");
     navigate({ search: updatedParams.toString() });
   }, [location.search, navigate]);
@@ -341,38 +524,13 @@ const SearchResults = () => {
     navigate({ search: updatedParams.toString() });
   }, [location.search, navigate]);
 
-  // コンテストタグクリックハンドラー（コンテストタグクラウド用）
-  const handleContestTagClick = useCallback((tag) => {
-    // 検索クエリを更新（コンテストタグ検索）
-    const updatedParams = new URLSearchParams(location.search);
-    updatedParams.set("contestTag", tag);
-    updatedParams.set("page", "1");
-    navigate({ search: updatedParams.toString() });
-  }, [location.search, navigate]);
-
-  // URLパラメータと状態の同期を確実にする
-  useEffect(() => {
-    const params = parseSearchParams(location.search);
-    
-    // currentPageの同期（データ読み込み中は元のページを保持）
-    if (params.page !== currentPage && !loading) {
-      setCurrentPage(params.page);
-    }
-    
-    // その他の状態の同期
-    if (params.type !== tab) setTab(params.type);
-    if (params.ageFilter !== ageFilter) setAgeFilter(params.ageFilter);
-    if (params.sortBy !== sortOption) setSortOption(params.sortBy);
-    if (params.size !== pageSize) setPageSize(params.size);
-    if (params.postType !== postTypeFilter) setPostTypeFilter(params.postType || "all");
-    if (params.length !== lengthFilter) setLengthFilter(params.length || "all");
-    if (params.seriesStatus !== seriesStatusFilter) setSeriesStatusFilter(params.seriesStatus || "all");
-  }, [location.search, currentPage, tab, ageFilter, sortOption, pageSize, postTypeFilter, lengthFilter, seriesStatusFilter, loading]);
-
   return (
-    <Container sx={{ mt: 4 }}>
+    <Container>
       <SearchResultsHeader 
         searchParams={searchParams}
+        loading={loading}
+        totalCounts={tab === 'users' ? { users: usersData.length } : 
+                     tab === 'posts' ? postsData.totalCounts : seriesData.totalCounts}
         tab={tab}
         onClearAIToolFilter={clearAIToolFilter}
         onClearContestTagFilter={clearContestTagFilter}
@@ -381,22 +539,28 @@ const SearchResults = () => {
       <SearchTabs 
         tab={tab}
         onTabChange={handleTabChange}
-        postsCount={postsData.totalCounts.all}
-        seriesCount={seriesData.totalCounts.all}
-        usersCount={usersData.length}
+        postsCount={postsData.totalCounts?.all || 0}
+        seriesCount={seriesData.totalCounts?.all || 0}
+        usersCount={usersData.length || 0}
       />
+
+      {/* 詳細設定ボタンはSearchResultsInfoコンポーネント内に移動 */}
 
       <AgeFilterTabs 
         ageFilter={ageFilter}
         onAgeFilterChange={handleAgeFilterChange}
-        totalCounts={tab === 'posts' ? postsData.totalCounts : seriesData.totalCounts}
+        postsData={detailedFilteredData}
+        seriesData={detailedFilteredData}
+        usersData={usersData}
+        totalCounts={tab === 'users' ? { users: usersData.length } : 
+                     detailedFilteredData.totalCounts}
         tab={tab}
       />
 
       <PostTypeFilterTabs 
         postTypeFilter={postTypeFilter}
         onPostTypeFilterChange={handlePostTypeFilterChange}
-        postsData={postsData}
+        postsData={detailedFilteredData}
         ageFilter={ageFilter}
         tab={tab}
       />
@@ -404,7 +568,7 @@ const SearchResults = () => {
       <LengthFilterTabs 
         lengthFilter={lengthFilter}
         onLengthFilterChange={handleLengthFilterChange}
-        postsData={postsData}
+        postsData={detailedFilteredData}
         ageFilter={ageFilter}
         postTypeFilter={postTypeFilter}
         tab={tab}
@@ -413,7 +577,7 @@ const SearchResults = () => {
       <SeriesStatusFilterTabs 
         seriesStatusFilter={seriesStatusFilter}
         onSeriesStatusFilterChange={handleSeriesStatusFilterChange}
-        seriesData={seriesData}
+        seriesData={detailedFilteredData}
         ageFilter={ageFilter}
         tab={tab}
       />
@@ -446,6 +610,9 @@ const SearchResults = () => {
         resultsInfo={resultsInfo}
         pageSize={pageSize}
         onPageSizeChange={handlePageSizeChange}
+        showDetailedButton={tab === 'posts' || tab === 'series'}
+        onDetailedButtonClick={handleOpenDetailedModal}
+        activeDetailedFiltersCount={getActiveDetailedFiltersCount()}
       />
 
       <SearchResultsContent 
@@ -469,6 +636,15 @@ const SearchResults = () => {
         totalFilteredCount={getTotalFilteredCount()}
         fetchingMore={fetchingMore}
         onLoadMore={loadMoreData}
+      />
+
+      {/* 詳細設定モーダル */}
+      <DetailedSortModal
+        open={detailedModalOpen}
+        onClose={handleCloseDetailedModal}
+        onApply={handleApplyDetailedFilters}
+        initialFilters={detailedFilters}
+        contentType={tab}
       />
     </Container>
   );

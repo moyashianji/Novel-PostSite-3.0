@@ -20,12 +20,10 @@ import {
   FilterList as FilterListIcon,
   Clear as ClearIcon,
   CalendarToday as CalendarTodayIcon,
-  TextFields as TextFieldsIcon
+  TextFields as TextFieldsIcon,
+  CollectionsBookmark as CollectionsIcon,
+  MenuBook as MenuBookIcon
 } from '@mui/icons-material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { ja } from 'date-fns/locale';
 
 // スタイル付きコンポーネント
 const ModalContainer = styled(Paper)(({ theme }) => ({
@@ -79,34 +77,76 @@ const DetailedSortModal = ({
   open, 
   onClose, 
   onApply,
-  initialFilters = {} 
+  initialFilters = {},
+  contentType = 'posts' // 'posts' または 'series'
 }) => {
   const theme = useTheme();
   
-  // フィルター状態
-  const [filters, setFilters] = useState({
+  // 日付を文字列形式に変換（input type="datetime-local"用）
+  const formatDateForInput = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  // 文字列をDateオブジェクトに変換
+  const parseInputDate = (dateString) => {
+    return dateString ? new Date(dateString) : null;
+  };
+  
+  // 作品用のフィルター状態
+  const [worksFilters, setWorksFilters] = useState({
     minWordCount: '',
     maxWordCount: '',
     startDate: null,
     endDate: null,
-    ...initialFilters
+  });
+
+  // シリーズ用のフィルター状態
+  const [seriesFilters, setSeriesFilters] = useState({
+    minWorksCount: '',
+    maxWorksCount: '',
+    seriesStartDate: null,
+    seriesEndDate: null,
   });
 
   // 初期値の設定
   useEffect(() => {
     if (open) {
-      setFilters({
-        minWordCount: initialFilters.minWordCount || '',
-        maxWordCount: initialFilters.maxWordCount || '',
-        startDate: initialFilters.startDate || null,
-        endDate: initialFilters.endDate || null,
-      });
+      if (contentType === 'posts') {
+        setWorksFilters({
+          minWordCount: initialFilters.minWordCount || '',
+          maxWordCount: initialFilters.maxWordCount || '',
+          startDate: initialFilters.startDate || null,
+          endDate: initialFilters.endDate || null,
+        });
+      } else {
+        setSeriesFilters({
+          minWorksCount: initialFilters.minWorksCount || '',
+          maxWorksCount: initialFilters.maxWorksCount || '',
+          seriesStartDate: initialFilters.seriesStartDate || null,
+          seriesEndDate: initialFilters.seriesEndDate || null,
+        });
+      }
     }
-  }, [open, initialFilters]);
+  }, [open, initialFilters, contentType]);
 
-  // フィルター値の変更処理
-  const handleFilterChange = (field, value) => {
-    setFilters(prev => ({
+  // フィルター値の変更処理（作品用）
+  const handleWorksFilterChange = (field, value) => {
+    setWorksFilters(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // フィルター値の変更処理（シリーズ用）
+  const handleSeriesFilterChange = (field, value) => {
+    setSeriesFilters(prev => ({
       ...prev,
       [field]: value
     }));
@@ -114,50 +154,94 @@ const DetailedSortModal = ({
 
   // フィルターのクリア処理
   const handleClearFilters = () => {
-    setFilters({
-      minWordCount: '',
-      maxWordCount: '',
-      startDate: null,
-      endDate: null
-    });
+    if (contentType === 'posts') {
+      setWorksFilters({
+        minWordCount: '',
+        maxWordCount: '',
+        startDate: null,
+        endDate: null
+      });
+    } else {
+      setSeriesFilters({
+        minWorksCount: '',
+        maxWorksCount: '',
+        seriesStartDate: null,
+        seriesEndDate: null
+      });
+    }
   };
 
   // フィルターの適用処理
   const handleApply = () => {
-    // 数値の検証
-    const minWordCount = filters.minWordCount ? parseInt(filters.minWordCount) : null;
-    const maxWordCount = filters.maxWordCount ? parseInt(filters.maxWordCount) : null;
+    if (contentType === 'posts') {
+      // 作品の場合の検証
+      const minWordCount = worksFilters.minWordCount ? parseInt(worksFilters.minWordCount) : null;
+      const maxWordCount = worksFilters.maxWordCount ? parseInt(worksFilters.maxWordCount) : null;
+      
+      // 最小値が最大値より大きい場合はエラー
+      if (minWordCount && maxWordCount && minWordCount > maxWordCount) {
+        alert('文字数の下限は上限より小さく設定してください。');
+        return;
+      }
+
+      // 開始日が終了日より遅い場合はエラー
+      if (worksFilters.startDate && worksFilters.endDate && worksFilters.startDate > worksFilters.endDate) {
+        alert('開始日は終了日より前に設定してください。');
+        return;
+      }
+
+      const appliedFilters = {
+        minWordCount,
+        maxWordCount,
+        startDate: worksFilters.startDate,
+        endDate: worksFilters.endDate
+      };
+
+      onApply(appliedFilters);
+    } else {
+      // シリーズの場合の検証
+      const minWorksCount = seriesFilters.minWorksCount ? parseInt(seriesFilters.minWorksCount) : null;
+      const maxWorksCount = seriesFilters.maxWorksCount ? parseInt(seriesFilters.maxWorksCount) : null;
+      
+      // 最小値が最大値より大きい場合はエラー
+      if (minWorksCount && maxWorksCount && minWorksCount > maxWorksCount) {
+        alert('作品数の下限は上限より小さく設定してください。');
+        return;
+      }
+
+      // 開始日が終了日より遅い場合はエラー
+      if (seriesFilters.seriesStartDate && seriesFilters.seriesEndDate && seriesFilters.seriesStartDate > seriesFilters.seriesEndDate) {
+        alert('開始日は終了日より前に設定してください。');
+        return;
+      }
+
+      const appliedFilters = {
+        minWorksCount,
+        maxWorksCount,
+        seriesStartDate: seriesFilters.seriesStartDate,
+        seriesEndDate: seriesFilters.seriesEndDate
+      };
+
+      onApply(appliedFilters);
+    }
     
-    // 最小値が最大値より大きい場合はエラー
-    if (minWordCount && maxWordCount && minWordCount > maxWordCount) {
-      alert('文字数の下限は上限より小さく設定してください。');
-      return;
-    }
-
-    // 開始日が終了日より遅い場合はエラー
-    if (filters.startDate && filters.endDate && filters.startDate > filters.endDate) {
-      alert('開始日は終了日より前に設定してください。');
-      return;
-    }
-
-    const appliedFilters = {
-      minWordCount,
-      maxWordCount,
-      startDate: filters.startDate,
-      endDate: filters.endDate
-    };
-
-    onApply(appliedFilters);
     onClose();
   };
 
   // アクティブなフィルターの数を計算
   const getActiveFilterCount = () => {
     let count = 0;
-    if (filters.minWordCount) count++;
-    if (filters.maxWordCount) count++;
-    if (filters.startDate) count++;
-    if (filters.endDate) count++;
+    if (contentType === 'posts') {
+      if (worksFilters.minWordCount) count++;
+      if (worksFilters.maxWordCount) count++;
+      if (worksFilters.startDate) count++;
+      if (worksFilters.endDate) count++;
+    } else {
+      if (seriesFilters.minWorksCount) count++;
+      if (seriesFilters.maxWorksCount) count++;
+      if (seriesFilters.seriesStartDate) count++;
+      if (seriesFilters.seriesEndDate) count++;
+    }
     return count;
   };
 
@@ -165,44 +249,86 @@ const DetailedSortModal = ({
   const getActiveFilterChips = () => {
     const chips = [];
     
-    if (filters.minWordCount) {
-      chips.push(
-        <FilterChip
-          key="minWordCount"
-          label={`文字数下限: ${filters.minWordCount}文字`}
-          onDelete={() => handleFilterChange('minWordCount', '')}
-        />
-      );
-    }
-    
-    if (filters.maxWordCount) {
-      chips.push(
-        <FilterChip
-          key="maxWordCount"
-          label={`文字数上限: ${filters.maxWordCount}文字`}
-          onDelete={() => handleFilterChange('maxWordCount', '')}
-        />
-      );
-    }
-    
-    if (filters.startDate) {
-      chips.push(
-        <FilterChip
-          key="startDate"
-          label={`開始日: ${filters.startDate.toLocaleDateString('ja-JP')}`}
-          onDelete={() => handleFilterChange('startDate', null)}
-        />
-      );
-    }
-    
-    if (filters.endDate) {
-      chips.push(
-        <FilterChip
-          key="endDate"
-          label={`終了日: ${filters.endDate.toLocaleDateString('ja-JP')}`}
-          onDelete={() => handleFilterChange('endDate', null)}
-        />
-      );
+    if (contentType === 'posts') {
+      if (worksFilters.minWordCount) {
+        chips.push(
+          <FilterChip
+            key="minWordCount"
+            label={`文字数下限: ${worksFilters.minWordCount}文字`}
+            onDelete={() => handleWorksFilterChange('minWordCount', '')}
+          />
+        );
+      }
+      
+      if (worksFilters.maxWordCount) {
+        chips.push(
+          <FilterChip
+            key="maxWordCount"
+            label={`文字数上限: ${worksFilters.maxWordCount}文字`}
+            onDelete={() => handleWorksFilterChange('maxWordCount', '')}
+          />
+        );
+      }
+      
+      if (worksFilters.startDate) {
+        chips.push(
+          <FilterChip
+            key="startDate"
+            label={`投稿開始日: ${worksFilters.startDate.toLocaleDateString('ja-JP')}`}
+            onDelete={() => handleWorksFilterChange('startDate', null)}
+          />
+        );
+      }
+      
+      if (worksFilters.endDate) {
+        chips.push(
+          <FilterChip
+            key="endDate"
+            label={`投稿終了日: ${worksFilters.endDate.toLocaleDateString('ja-JP')}`}
+            onDelete={() => handleWorksFilterChange('endDate', null)}
+          />
+        );
+      }
+    } else {
+      if (seriesFilters.minWorksCount) {
+        chips.push(
+          <FilterChip
+            key="minWorksCount"
+            label={`作品数下限: ${seriesFilters.minWorksCount}作品`}
+            onDelete={() => handleSeriesFilterChange('minWorksCount', '')}
+          />
+        );
+      }
+      
+      if (seriesFilters.maxWorksCount) {
+        chips.push(
+          <FilterChip
+            key="maxWorksCount"
+            label={`作品数上限: ${seriesFilters.maxWorksCount}作品`}
+            onDelete={() => handleSeriesFilterChange('maxWorksCount', '')}
+          />
+        );
+      }
+      
+      if (seriesFilters.seriesStartDate) {
+        chips.push(
+          <FilterChip
+            key="seriesStartDate"
+            label={`シリーズ開始日: ${seriesFilters.seriesStartDate.toLocaleDateString('ja-JP')}`}
+            onDelete={() => handleSeriesFilterChange('seriesStartDate', null)}
+          />
+        );
+      }
+      
+      if (seriesFilters.seriesEndDate) {
+        chips.push(
+          <FilterChip
+            key="seriesEndDate"
+            label={`シリーズ終了日: ${seriesFilters.seriesEndDate.toLocaleDateString('ja-JP')}`}
+            onDelete={() => handleSeriesFilterChange('seriesEndDate', null)}
+          />
+        );
+      }
     }
     
     return chips;
@@ -225,6 +351,21 @@ const DetailedSortModal = ({
               <FilterListIcon />
               <Typography variant="h6" fontWeight="bold">
                 詳細フィルター
+                {contentType === 'posts' ? (
+                  <Chip 
+                    label="作品" 
+                    size="small" 
+                    icon={<MenuBookIcon />}
+                    sx={{ ml: 1, backgroundColor: 'rgba(255,255,255,0.2)' }}
+                  />
+                ) : (
+                  <Chip 
+                    label="シリーズ" 
+                    size="small" 
+                    icon={<CollectionsIcon />}
+                    sx={{ ml: 1, backgroundColor: 'rgba(255,255,255,0.2)' }}
+                  />
+                )}
               </Typography>
             </Box>
             <IconButton onClick={onClose} sx={{ color: 'inherit' }}>
@@ -233,81 +374,161 @@ const DetailedSortModal = ({
           </ModalHeader>
 
           <ModalContent>
-            {/* 文字数フィルター */}
-            <SectionTitle>
-              <TextFieldsIcon />
-              文字数フィルター
-            </SectionTitle>
-            
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid item xs={6}>
-                <TextField
-                  label="下限（文字数）"
-                  type="number"
-                  fullWidth
-                  value={filters.minWordCount}
-                  onChange={(e) => handleFilterChange('minWordCount', e.target.value)}
-                  placeholder="制限なし"
-                  helperText="未指定の場合は制限なし"
-                  InputProps={{
-                    inputProps: { min: 0 }
-                  }}
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  label="上限（文字数）"
-                  type="number"
-                  fullWidth
-                  value={filters.maxWordCount}
-                  onChange={(e) => handleFilterChange('maxWordCount', e.target.value)}
-                  placeholder="制限なし"
-                  helperText="未指定の場合は制限なし"
-                  InputProps={{
-                    inputProps: { min: 0 }
-                  }}
-                />
-              </Grid>
-            </Grid>
-
-            <Divider sx={{ my: 3 }} />
-
-            {/* 投稿日フィルター */}
-            <SectionTitle>
-              <CalendarTodayIcon />
-              投稿日フィルター
-            </SectionTitle>
-            
-            <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ja}>
-              <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={6}>
-                  <DatePicker
-                    label="開始日"
-                    value={filters.startDate}
-                    onChange={(newValue) => handleFilterChange('startDate', newValue)}
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        helperText: '未指定の場合は制限なし'
-                      }
-                    }}
-                  />
+            {contentType === 'posts' ? (
+              // 作品用フィルター
+              <>
+                {/* 文字数フィルター */}
+                <SectionTitle>
+                  <TextFieldsIcon />
+                  文字数フィルター
+                </SectionTitle>
+                
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                  <Grid item xs={6}>
+                    <TextField
+                      label="下限（文字数）"
+                      type="number"
+                      fullWidth
+                      value={worksFilters.minWordCount}
+                      onChange={(e) => handleWorksFilterChange('minWordCount', e.target.value)}
+                      placeholder="制限なし"
+                      helperText="未指定の場合は制限なし"
+                      InputProps={{
+                        inputProps: { min: 0 }
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField
+                      label="上限（文字数）"
+                      type="number"
+                      fullWidth
+                      value={worksFilters.maxWordCount}
+                      onChange={(e) => handleWorksFilterChange('maxWordCount', e.target.value)}
+                      placeholder="制限なし"
+                      helperText="未指定の場合は制限なし"
+                      InputProps={{
+                        inputProps: { min: 0 }
+                      }}
+                    />
+                  </Grid>
                 </Grid>
-                <Grid item xs={6}>
-                  <DatePicker
-                    label="終了日"
-                    value={filters.endDate}
-                    onChange={(newValue) => handleFilterChange('endDate', newValue)}
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        helperText: '未指定の場合は制限なし'
-                      }
-                    }}
-                  />
+
+                <Divider sx={{ my: 3 }} />
+
+                {/* 投稿日フィルター */}
+                <SectionTitle>
+                  <CalendarTodayIcon />
+                  投稿日フィルター
+                </SectionTitle>
+                
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                  <Grid item xs={6}>
+                    <TextField
+                      label="開始日"
+                      type="datetime-local"
+                      fullWidth
+                      value={formatDateForInput(worksFilters.startDate)}
+                      onChange={(e) => handleWorksFilterChange('startDate', parseInputDate(e.target.value))}
+                      InputLabelProps={{
+                        shrink: true,
+                      }}
+                      helperText="未指定の場合は制限なし"
+                    />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField
+                      label="終了日"
+                      type="datetime-local"
+                      fullWidth
+                      value={formatDateForInput(worksFilters.endDate)}
+                      onChange={(e) => handleWorksFilterChange('endDate', parseInputDate(e.target.value))}
+                      InputLabelProps={{
+                        shrink: true,
+                      }}
+                      helperText="未指定の場合は制限なし"
+                    />
+                  </Grid>
                 </Grid>
-              </Grid>
-            </LocalizationProvider>
+              </>
+            ) : (
+              // シリーズ用フィルター
+              <>
+                {/* 作品数フィルター */}
+                <SectionTitle>
+                  <CollectionsIcon />
+                  含まれる作品数フィルター
+                </SectionTitle>
+                
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                  <Grid item xs={6}>
+                    <TextField
+                      label="下限（作品数）"
+                      type="number"
+                      fullWidth
+                      value={seriesFilters.minWorksCount}
+                      onChange={(e) => handleSeriesFilterChange('minWorksCount', e.target.value)}
+                      placeholder="制限なし"
+                      helperText="未指定の場合は制限なし"
+                      InputProps={{
+                        inputProps: { min: 1 }
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField
+                      label="上限（作品数）"
+                      type="number"
+                      fullWidth
+                      value={seriesFilters.maxWorksCount}
+                      onChange={(e) => handleSeriesFilterChange('maxWorksCount', e.target.value)}
+                      placeholder="制限なし"
+                      helperText="未指定の場合は制限なし"
+                      InputProps={{
+                        inputProps: { min: 1 }
+                      }}
+                    />
+                  </Grid>
+                </Grid>
+
+                <Divider sx={{ my: 3 }} />
+
+                {/* シリーズ作成日フィルター */}
+                <SectionTitle>
+                  <CalendarTodayIcon />
+                  シリーズ作成日フィルター
+                </SectionTitle>
+                
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                  <Grid item xs={6}>
+                    <TextField
+                      label="開始日"
+                      type="datetime-local"
+                      fullWidth
+                      value={formatDateForInput(seriesFilters.seriesStartDate)}
+                      onChange={(e) => handleSeriesFilterChange('seriesStartDate', parseInputDate(e.target.value))}
+                      InputLabelProps={{
+                        shrink: true,
+                      }}
+                      helperText="未指定の場合は制限なし"
+                    />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField
+                      label="終了日"
+                      type="datetime-local"
+                      fullWidth
+                      value={formatDateForInput(seriesFilters.seriesEndDate)}
+                      onChange={(e) => handleSeriesFilterChange('seriesEndDate', parseInputDate(e.target.value))}
+                      InputLabelProps={{
+                        shrink: true,
+                      }}
+                      helperText="未指定の場合は制限なし"
+                    />
+                  </Grid>
+                </Grid>
+              </>
+            )}
 
             {/* アクティブなフィルター表示 */}
             {getActiveFilterCount() > 0 && (
