@@ -26,15 +26,33 @@ export const buildSearchQuery = (searchParams, excludeKeys = []) => {
 // URLから検索パラメータを解析
 export const parseSearchParams = (locationSearch) => {
   const query = new URLSearchParams(locationSearch);
+  
+  let defaultFields = ["title", "content", "tags"];
+  const type = query.get("type") || "posts";
+  
+  if (type === "users") {
+    defaultFields = ["nickname", "favoriteAuthors"];
+  } else if (type === "series") {
+    defaultFields = ["title", "description", "tags"];
+  }
+  
+  let fields = query.get("fields") ? query.get("fields").split(",") : defaultFields;
+  
+  // コンテストタグが指定されている場合は、fieldsにcontestTagsを追加
+  const contestTag = query.get("contestTag");
+  if (contestTag && contestTag.trim() && !fields.includes("contestTags")) {
+    fields.push("contestTags");
+  }
+  
   return {
     mustInclude: query.get("mustInclude") || "",
     shouldInclude: query.get("shouldInclude") || "",
     mustNotInclude: query.get("mustNotInclude") || "",
-    fields: query.get("fields") ? query.get("fields").split(",") : ["title", "content", "tags"],
+    fields: query.get("fields") ? query.get("fields").split(",") : defaultFields,
     tagSearchType: query.get("tagSearchType") || "partial",
     type: query.get("type") || "posts",
     aiTool: query.get("aiTool") || "",
-    contestTag: query.get("contestTag") || "", // コンテストタグ検索パラメータを追加
+    contestTag: contestTag || "",
     ageFilter: query.get("ageFilter") || "all",
     sortBy: query.get("sortBy") || "newest",
     page: parseInt(query.get("page")) || 1,

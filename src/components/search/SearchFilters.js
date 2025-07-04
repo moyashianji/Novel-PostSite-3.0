@@ -36,7 +36,7 @@ const KeywordFilter = React.memo(({ label, value, onChange, placeholder }) => (
 
 const RadioFilter = React.memo(({ label, value, options, onChange, disabled }) => {
     if (disabled) return null;
-    
+
     return (
         <FormControl component="fieldset" sx={{ mb: 2 }}>
             <FormLabel component="legend">{label}</FormLabel>
@@ -57,32 +57,32 @@ const RadioFilter = React.memo(({ label, value, options, onChange, disabled }) =
 // AIツールフィルター
 const AIToolFilter = React.memo(({ value, onChange, clearFilter, disabled }) => {
     // 一般的なAIツールのリスト
-    const commonAITools = [ "AIのべりすと","ChatGPT", "Claude", "GPT-4", "DALL-E", "Midjourney", "Stable Diffusion", 
+    const commonAITools = ["AIのべりすと", "ChatGPT", "Claude", "GPT-4", "DALL-E", "Midjourney", "Stable Diffusion",
         "Bard", "Bing AI", "Jasper", "Rytr", "Copy.ai", "Novel AI", "AI Dungeon",
         "Replika", "Character.AI", "Playground AI", "DeepL", "Notion AI", "Sudowrite",
         "Synthesia", "RunwayML", "Kaiber", "Leonardo.AI", "Firefly"];
-    
+
     if (disabled) return null;
-    
+
     return (
         <Box sx={{ mb: 2 }}>
             <FormLabel component="legend" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <SmartToyIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
                 AIツールで絞り込み（現在作品のみの対応です）
             </FormLabel>
-            
+
             {value && (
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <Typography variant="body2" sx={{ mr: 1 }}>選択中:</Typography>
-                    <Chip 
-                        label={value} 
+                    <Chip
+                        label={value}
                         onDelete={clearFilter}
                         color="secondary"
                         size="small"
                     />
                 </Box>
             )}
-            
+
             <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
                 {commonAITools.map((tool) => (
                     <Chip
@@ -108,7 +108,7 @@ const SearchFilters = () => {
     const query = new URLSearchParams(location.search);
     const type = query.get("type") || "posts"; // デフォルトでposts
     const aiTool = query.get("aiTool") || "";
-    
+
     // タイプに応じてフィールドのデフォルト値を設定
     useEffect(() => {
         const defaultFields = {
@@ -129,14 +129,29 @@ const SearchFilters = () => {
         }
     }, [type, setSearchParams, searchParams.fields, searchParams.type]);
 
-    const handleInputChange = useCallback((field, value) => {
-        setSearchParams((prev) => ({
+const handleInputChange = useCallback((field, value) => {
+    setSearchParams((prev) => {
+        let newValue = value;
+        
+        // fieldsの変更時に特別な処理
+        if (field === "fields") {
+            // コンテストタグが入力されている場合は、contestTagsを自動的に追加
+            if (prev.contestTag && prev.contestTag.trim()) {
+                const fieldsArray = value.split(',');
+                if (!fieldsArray.includes('contestTags')) {
+                    fieldsArray.push('contestTags');
+                    newValue = fieldsArray.join(',');
+                }
+            }
+        }
+        
+        return {
             ...prev,
-            [field]: field === "fields" ? value.split(",") : value,
-            // 検索条件変更時はページを1に戻す
+            [field]: field === "fields" ? newValue : value,
             page: "1"
-        }));
-    }, [setSearchParams]);
+        };
+    });
+}, [setSearchParams]);
 
     // AIツールの選択処理
     const handleAIToolSelect = useCallback((tool) => {
@@ -158,7 +173,7 @@ const SearchFilters = () => {
 
     const handleSearchClick = useCallback(() => {
         const updatedQuery = new URLSearchParams();
-    
+
         // デフォルトで作品タブを選択するように設定
         Object.keys(searchParams).forEach((key) => {
             if (searchParams[key]) {
@@ -168,7 +183,7 @@ const SearchFilters = () => {
                 );
             }
         });
-        
+
         // typeが指定されていない場合は、デフォルトでpostsを設定
         if (!updatedQuery.has("type")) {
             updatedQuery.set("type", "posts");
@@ -179,32 +194,33 @@ const SearchFilters = () => {
     }, [searchParams, navigate]);
 
     // 検索フィールドのオプション（コンテストタグを削除）
-    const fieldsOptions = type === "users" 
+const fieldsOptions = type === "users" 
+    ? [
+        { value: "nickname,favoriteAuthors", label: "ユーザー名・好きな作家タグ" },
+        { value: "nickname", label: "ユーザー名" },
+        { value: "favoriteAuthors", label: "好きな作家タグ" },
+    ]
+    : type === "series"
         ? [
-            { value: "nickname,favoriteAuthors", label: "ユーザー名・好きな作家タグ" },
-            { value: "nickname", label: "ユーザー名" },
-            { value: "favoriteAuthors", label: "好きな作家タグ" },
+            { value: "title,description,tags", label: "タイトル・説明・タグ" },
+            { value: "title", label: "タイトル" },
+            { value: "description", label: "説明" },
+            { value: "tags", label: "タグ" },
         ]
-        : type === "series"
-            ? [
-                { value: "title,description,tags", label: "タイトル・説明・タグ" },
-                { value: "title", label: "タイトル" },
-                { value: "description", label: "説明" },
-                { value: "tags", label: "タグ" },
-            ]
-            : [
-                { value: "title,content,tags", label: "タイトル・本文・タグ" },
-                { value: "title", label: "タイトル" },
-                { value: "content", label: "本文" },
-                { value: "tags", label: "タグ" },
-                // コンテストタグのオプションを削除
-            ];
+        : [
+            // 🔥 作品検索でもコンテストタグを検索対象から除外
+            { value: "title,content,tags", label: "タイトル・本文・タグ" },
+            { value: "title", label: "タイトル" },
+            { value: "content", label: "本文" },
+            { value: "tags", label: "タグ" },
+            // 🚫 contestTagsオプションは削除（ユーザーが手動選択できないようにする）
+        ];
 
     return (
-        <FormControl component="fieldset" sx={{ 
-            mb: 3, 
-            p: 2, 
-            border: "1px solid #e0e0e0", 
+        <FormControl component="fieldset" sx={{
+            mb: 3,
+            p: 2,
+            border: "1px solid #e0e0e0",
             borderRadius: "8px",
             boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
         }}>
@@ -224,7 +240,7 @@ const SearchFilters = () => {
                 value={searchParams.mustInclude}
                 onChange={(e) => handleInputChange("mustInclude", e.target.value)}
             />
-            
+
             {type !== "users" && (
                 <>
                     <KeywordFilter
@@ -241,12 +257,28 @@ const SearchFilters = () => {
                     <Box sx={{ mb: 2 }}>
                         <FormLabel component="legend" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                             <EmojiEventsIcon sx={{ mr: 1, fontSize: '1.2rem', color: 'primary.main' }} />
-                            コンテストで検索（該当するコンテストタグを持つ作品を優先表示）
+                            コンテストで検索（該当するコンテストタグを持つ作品を検索）
                         </FormLabel>
                         <TextField
                             label="コンテストタグ"
                             value={searchParams.contestTag || ''}
-                            onChange={(e) => handleInputChange("contestTag", e.target.value)}
+                            onChange={(e) => {
+                                // コンテストタグが入力された場合、fieldsも自動的にcontestTagsを含める
+                                const newValue = e.target.value;
+                                handleInputChange("contestTag", newValue);
+
+                                // 🔥 重要な修正: コンテストタグ入力時にfieldsを自動設定
+                                if (newValue.trim()) {
+                                    // コンテストタグがある場合は、fieldsにcontestTagsを追加
+                                    const currentFields = Array.isArray(searchParams.fields) ? searchParams.fields :
+                                        (searchParams.fields ? searchParams.fields.split(',') : ['title', 'content', 'tags']);
+
+                                    if (!currentFields.includes('contestTags')) {
+                                        currentFields.push('contestTags');
+                                        handleInputChange("fields", currentFields.join(','));
+                                    }
+                                }
+                            }}
                             placeholder="例: 春コンテスト"
                             fullWidth
                             variant="outlined"
@@ -259,7 +291,7 @@ const SearchFilters = () => {
                         />
                         {searchParams.contestTag && (
                             <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
-                                「{searchParams.contestTag}」のコンテストタグを持つ作品を優先表示
+                                「{searchParams.contestTag}」のコンテストタグを持つ作品を検索中
                             </Typography>
                         )}
                     </Box>
@@ -269,8 +301,8 @@ const SearchFilters = () => {
             <Divider sx={{ my: 2 }} />
 
             {/* AIツールフィルター (ユーザー検索では非表示) */}
-            <AIToolFilter 
-                value={searchParams.aiTool} 
+            <AIToolFilter
+                value={searchParams.aiTool}
                 onChange={handleAIToolSelect}
                 clearFilter={clearAIToolFilter}
                 disabled={type === "users"}
@@ -278,14 +310,38 @@ const SearchFilters = () => {
 
             {type !== "users" && <Divider sx={{ my: 2 }} />}
 
-            <RadioFilter
-                label="検索対象"
-                value={Array.isArray(searchParams.fields) ? 
-                    searchParams.fields.join(",") : searchParams.fields}
-                options={fieldsOptions}
-                onChange={(e) => handleInputChange("fields", e.target.value)}
-            />
-
+<RadioFilter
+    label="検索対象"
+    value={
+        (() => {
+            let currentFields = Array.isArray(searchParams.fields) ? 
+                searchParams.fields.join(",") : searchParams.fields;
+            
+            // 表示用にcontestTagsを除外
+            if (currentFields) {
+                const fieldsArray = currentFields.split(',');
+                const filteredFields = fieldsArray.filter(field => field !== 'contestTags');
+                return filteredFields.join(',');
+            }
+            return currentFields;
+        })()
+    }
+    options={fieldsOptions}
+    onChange={(e) => {
+        let newFields = e.target.value;
+        
+        // 🔥 重要: コンテストタグが入力されている場合は、contestTagsを自動的に追加
+        if (searchParams.contestTag && searchParams.contestTag.trim()) {
+            const fieldsArray = newFields.split(',');
+            if (!fieldsArray.includes('contestTags')) {
+                fieldsArray.push('contestTags');
+                newFields = fieldsArray.join(',');
+            }
+        }
+        
+        handleInputChange("fields", newFields);
+    }}
+/>
             <RadioFilter
                 label="タグ検索の精度"
                 value={searchParams.tagSearchType}
@@ -299,19 +355,19 @@ const SearchFilters = () => {
 
             {type === "users" && (
                 <Box sx={{ mb: 2 }}>
-                    <Chip 
-                        label="ユーザー検索は完全一致のみ対応" 
-                        variant="outlined" 
+                    <Chip
+                        label="ユーザー検索は完全一致のみ対応"
+                        variant="outlined"
                         color="primary"
                         size="small"
                     />
                 </Box>
             )}
 
-            <Button 
-                variant="contained" 
-                color="primary" 
-                onClick={handleSearchClick} 
+            <Button
+                variant="contained"
+                color="primary"
+                onClick={handleSearchClick}
                 sx={{ mt: 2 }}
                 startIcon={<SearchIcon />}
                 size="medium"

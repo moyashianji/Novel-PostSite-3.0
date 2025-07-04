@@ -61,19 +61,19 @@ router.get('/users', async (req, res) => {
         const enrichedUsers = await Promise.all(users.map(async (user) => {
             try {
                 // Get post count - 公開作品のみカウント
-                const postCount = await Post.countDocuments({ 
-                    author: user._id, 
-                    publicityStatus: 'public' 
+                const postCount = await Post.countDocuments({
+                    author: user._id,
+                    publicityStatus: 'public'
                 });
 
                 // Get series count - 公開シリーズのみカウント
-                const seriesCount = await Series.countDocuments({ 
-                    author: user._id, 
-                    publicityStatus: 'public' 
+                const seriesCount = await Series.countDocuments({
+                    author: user._id,
+                    publicityStatus: 'public'
                 });
 
                 // 最近の作品も公開作品のみ取得
-                const recentWorks = await Post.find({ 
+                const recentWorks = await Post.find({
                     author: user._id,
                     publicityStatus: 'public' // ✅ 公開作品のみ
                 })
@@ -166,15 +166,15 @@ router.get('/', async (req, res) => {
         console.log(`      ✅ mustNotIncludeTerms: ${mustNotIncludeTerms}`);
 
         // ✅ Elasticsearch のクエリ構築
-        let query = { 
-            bool: { 
-                must: [], 
-                should: [], 
-                must_not: [], 
+        let query = {
+            bool: {
+                must: [],
+                should: [],
+                must_not: [],
                 filter: [
                     { term: { "publicityStatus": "public" } } // ✅ 公開作品のみを検索対象に
                 ]
-            } 
+            }
         };
 
         if (mustIncludeTerms.length > 0) {
@@ -234,15 +234,33 @@ router.get('/', async (req, res) => {
         }
 
         // 🆕 コンテストタグでの検索を追加
+        // 🆕 コンテストタグでの検索を追加（修正版）
         if (contestTag) {
-            // コンテストタグは常に完全一致での検索
-            query.bool.filter.push({
-                term: {
-                    "contestTags": contestTag
-                }
-            });
-            console.log(`[INFO] 🏆 コンテストタグフィルター適用: ${contestTag}`);
+            console.log(`[INFO] 🏆 コンテストタグ検索: ${contestTag}`);
+
+            // fieldsにcontestTagsが含まれているかチェック
+            if (fields.includes('contestTags')) {
+                // contestTagsフィールドでの検索
+                query.bool.must.push({
+                    match: {
+                        contestTags: {
+                            query: contestTag,
+                            operator: "and"
+                        }
+                    }
+                });
+                console.log(`[INFO] 🎯 contestTagsフィールドでの一致検索を実行`);
+            } else {
+                // 従来のフィルター検索（完全一致）
+                query.bool.filter.push({
+                    term: {
+                        "contestTags": contestTag
+                    }
+                });
+                console.log(`[INFO] 🔍 contestTagsフィルターでの完全一致検索を実行`);
+            }
         }
+
 
         // 年齢制限でのフィルタリングを追加
         if (ageFilter && ageFilter !== 'all') {
@@ -252,7 +270,7 @@ router.get('/', async (req, res) => {
                 }
             });
         }
-        
+
         if (req.query.isCompleted !== undefined) {
             // 'true', 'false' の文字列をブール値に変換
             const isCompleted = req.query.isCompleted === 'true';
@@ -262,7 +280,7 @@ router.get('/', async (req, res) => {
                 }
             });
         }
-        
+
         console.log('[INFO] 🔍 Elasticsearch 検索クエリ:', JSON.stringify(query, null, 2));
         console.log('[INFO] 🔒 公開作品のみを検索対象にフィルタリング適用');
 
@@ -311,10 +329,10 @@ router.get('/', async (req, res) => {
             };
 
             const sortConfig = getSortConfig(sortBy);
-            
+
             // MongoDB側でソートしつつ、指定されたIDのみを取得
             // ✅ MongoDB側でも公開作品のみに絞り込み（二重チェック）
-            const results = await Post.find({ 
+            const results = await Post.find({
                 _id: { $in: docIds },
                 publicityStatus: 'public' // ✅ 公開作品のみ
             })
@@ -337,7 +355,7 @@ router.get('/', async (req, res) => {
         } else {
             // シリーズの場合の検索・ソート処理
             // ✅ シリーズも公開のみに絞り込み
-            const seriesData = await Series.find({ 
+            const seriesData = await Series.find({
                 _id: { $in: docIds },
                 publicityStatus: 'public' // ✅ 公開シリーズのみ
             })
@@ -354,12 +372,12 @@ router.get('/', async (req, res) => {
             const enrichedSeriesData = seriesData.map(series => {
                 // 有効なpostIdを持つ投稿のみをフィルタリング
                 const validPosts = (series.posts || []).filter(p => p.postId);
-                
+
                 // 各メトリクスの合計を計算
                 const totalViews = validPosts.reduce((sum, p) => sum + (p.postId.viewCounter || 0), 0);
                 const totalLikes = validPosts.reduce((sum, p) => sum + (p.postId.goodCounter || 0), 0);
                 const totalBookmarks = validPosts.reduce((sum, p) => sum + (p.postId.bookShelfCounter || 0), 0);
-                
+
                 return {
                     ...series,
                     _totalViews: totalViews,
@@ -370,7 +388,7 @@ router.get('/', async (req, res) => {
 
             // 選択されたソート方法に基づいてシリーズをソート
             const sortedSeriesData = [...enrichedSeriesData];
-            
+
             switch (sortBy) {
                 case 'newest':
                     sortedSeriesData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -427,9 +445,9 @@ router.get('/', async (req, res) => {
                     isCompleted: rest.isCompleted !== undefined ? rest.isCompleted : false // isCompleted が undefined の場合はデフォルトで false
                 };
             });
-            
+
             console.log(`[INFO] ✅ ソート・ページネーション後のデータ数: ${cleanResults.length}`);
-            
+
             res.json({
                 results: cleanResults,
                 total: sortedSeriesData.length,
@@ -438,7 +456,7 @@ router.get('/', async (req, res) => {
                 hasMore: from + cleanResults.length < sortedSeriesData.length
             });
         }
-        
+
         console.log('\n🔍 ================== 検索リクエスト完了 ==================\n');
 
     } catch (error) {

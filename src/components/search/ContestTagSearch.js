@@ -28,18 +28,22 @@ const ContestTagSearch = ({ tab }) => {
   }, [location.search]);
 
   // コンテストタグ検索の実行
-  const handleContestTagSearch = useCallback(() => {
+const handleContestTagSearch = useCallback(() => {
     if (!contestTagInput.trim()) return;
     
+    // 🔥 重要な修正: URLパラメータを正しく設定
     const updatedParams = new URLSearchParams(location.search);
-    updatedParams.set("mustInclude", contestTagInput.trim());
-    updatedParams.set("fields", "contestTags");
-    updatedParams.set("tagSearchType", "exact");
-    updatedParams.set("type", "posts"); // 作品タブに設定
+    updatedParams.set("contestTag", contestTagInput.trim());
+    updatedParams.set("fields", "title,content,tags,contestTags"); // 🆕 contestTagsを含める
     updatedParams.set("page", "1");
+    updatedParams.set("type", "posts"); // 作品検索に設定
     
+    // 検索実行
     navigate({ search: updatedParams.toString() });
-  }, [contestTagInput, location.search, navigate]);
+    
+    // 入力をクリア
+    setContestTagInput('');
+}, [contestTagInput, location.search, navigate]);
 
   // コンテストタグ検索のクリア
   const handleClearContestTagSearch = useCallback(() => {
