@@ -118,6 +118,9 @@ router.get('/users', async (req, res) => {
 });
 
 
+// メイン検索エンドポイント - フィールド問題修正版
+
+// メイン検索エンドポイント - publicityStatus問題修正版
 router.get('/', async (req, res) => {
     try {
         if (!esClient) {
@@ -125,91 +128,366 @@ router.get('/', async (req, res) => {
             return res.status(500).json({ message: 'Elasticsearch クライアントが初期化されていません。' });
         }
 
-        // 🔍 検索対象を決定 (`posts` または `series`)
         const type = req.query.type || 'posts';
-        const index = type === 'series' ? 'series' : 'posts';
-
-        // 🌟 ページネーションのパラメータ
+        const index = type === 'series' ? 'series' : 'posts_fixed';
         const page = parseInt(req.query.page) || 1;
         const size = parseInt(req.query.size) || 10;
-        const from = (page - 1) * size;
+        const skip = (page - 1) * size;
 
-        // 🔍 検索キーワード
         const mustInclude = req.query.mustInclude || '';
         const shouldInclude = req.query.shouldInclude || '';
         const mustNotInclude = req.query.mustNotInclude || '';
         const tagSearchType = req.query.tagSearchType || 'partial';
         const tags = req.query.tags ? req.query.tags.split(',') : [];
-        const aiTool = req.query.aiTool || ''; // AIツールパラメータを追加
-        const contestTag = req.query.contestTag || ''; // 🆕 コンテストタグパラメータを追加
-        const ageFilter = req.query.ageFilter || 'all'; // 年齢制限フィルターを追加
-        const sortBy = req.query.sortBy || 'newest'; // ソートオプションを追加
+        const aiTool = req.query.aiTool || '';
+        const contestTag = req.query.contestTag || '';
+        const ageFilter = req.query.ageFilter || 'all';
+        const sortBy = req.query.sortBy || 'newest';
 
-        // 🔹 fields の取得とデバッグ強化
+        // fields の取得と正規化
         let fields = [];
         if (typeof req.query.fields === 'string') {
-            fields = req.query.fields.split(',');
+            fields = req.query.fields.split(',').map(f => f.trim()).filter(f => f);
         } else {
             fields = type === 'series' ? ['title', 'description', 'tags'] : ['title', 'content', 'tags'];
         }
 
-        console.log(`[INFO] 🎯 検索フィールド: ${fields.join(', ')}`);
+        console.log(`[INFO] 🎯 検索対象: ${type}, インデックス: ${index}`);
+        console.log(`[INFO] 🎯 検索フィールド: [${fields.join(', ')}]`);
+        console.log(`[INFO] 🔍 検索キーワード: "${mustInclude}"`);
 
-        // 🔍 検索キーワードを分割
+        // ===== publicityStatusフィールドのマッピング確認 =====
+        try {
+            const mapping = await esClient.indices.getMapping({ index: index });
+            const properties = mapping[index].mappings.properties;
+            
+            console.log(`[INFO] 📋 publicityStatusフィールドマッピング:`, properties.publicityStatus);
+            
+            // publicityStatusの正しいフィールド名を決定
+            let publicityStatusField = 'publicityStatus';
+            if (properties.publicityStatus) {
+                if (properties.publicityStatus.type === 'text' && properties.publicityStatus.fields && properties.publicityStatus.fields.keyword) {
+                    publicityStatusField = 'publicityStatus.keyword';
+                    console.log(`[INFO] 🔧 publicityStatusはtext型のため、keyword サブフィールドを使用: ${publicityStatusField}`);
+                } else if (properties.publicityStatus.type === 'keyword') {
+                    publicityStatusField = 'publicityStatus';
+                    console.log(`[INFO] ✅ publicityStatusはkeyword型で正常`);
+                }
+            }
+
+            // isAdultContentフィールドの確認
+            let isAdultContentField = 'isAdultContent';
+            if (properties.isAdultContent) {
+                console.log(`[INFO] 📋 isAdultContentフィールド: type=${properties.isAdultContent.type}`);
+            }
+
+        } catch (mappingError) {
+            console.error(`[ERROR] マッピング確認エラー:`, mappingError);
+        }
+
+        // 検索キーワードを分割
         const mustIncludeTerms = mustInclude.split(/\s+/).filter(term => term.trim() !== "");
         const shouldIncludeTerms = shouldInclude.split(/\s+/).filter(term => term.trim() !== "");
         const mustNotIncludeTerms = mustNotInclude.split(/\s+/).filter(term => term.trim() !== "");
 
         console.log('[INFO] 🔍 キーワード分割:');
-        console.log(`      ✅ mustIncludeTerms: ${mustIncludeTerms}`);
-        console.log(`      ✅ shouldIncludeTerms: ${shouldIncludeTerms}`);
-        console.log(`      ✅ mustNotIncludeTerms: ${mustNotIncludeTerms}`);
+        console.log(`      ✅ mustIncludeTerms: ${JSON.stringify(mustIncludeTerms)}`);
 
-        // ✅ Elasticsearch のクエリ構築
+        // ===== publicityStatusの事前テスト =====
+        try {
+            console.log(`[INFO] 🧪 publicityStatusフィルターのテスト...`);
+            
+            // まず、publicityStatusフィールドの存在とデータを確認
+            const publicityTestResponse = await esClient.search({
+                index: index,
+                body: {
+                    query: { match_all: {} },
+                    size: 5,
+                    _source: ['publicityStatus', 'title', '_id']
+                }
+            });
+
+            console.log(`[INFO] 📊 全ドキュメント数（フィルター無し）: ${publicityTestResponse.hits.total.value} 件`);
+            
+            if (publicityTestResponse.hits.hits.length > 0) {
+                console.log(`[INFO] 📄 publicityStatusサンプル:`);
+                publicityTestResponse.hits.hits.forEach((hit, idx) => {
+                    console.log(`    ${idx + 1}. ID:${hit._id} - publicityStatus: ${JSON.stringify(hit._source.publicityStatus)}`);
+                });
+            }
+
+            // 様々なpublicityStatusフィルターでテスト
+            const publicityTests = [
+                { name: 'term-publicityStatus', query: { term: { "publicityStatus": "public" } } },
+                { name: 'term-publicityStatus.keyword', query: { term: { "publicityStatus.keyword": "public" } } },
+                { name: 'match-publicityStatus', query: { match: { "publicityStatus": "public" } } },
+                { name: 'exists-publicityStatus', query: { exists: { "field": "publicityStatus" } } }
+            ];
+
+            for (const test of publicityTests) {
+                try {
+                    const testResponse = await esClient.search({
+                        index: index,
+                        body: {
+                            query: test.query,
+                            size: 1
+                        }
+                    });
+                    console.log(`[INFO] 🔍 ${test.name}: ${testResponse.hits.total.value} 件`);
+                } catch (testError) {
+                    console.log(`[INFO] ❌ ${test.name}: エラー - ${testError.message}`);
+                }
+            }
+
+        } catch (publicityTestError) {
+            console.error(`[ERROR] publicityStatusテストエラー:`, publicityTestError);
+        }
+
+        // ===== フィールド別事前テスト（既存のキーワード検索テスト） =====
+        if (mustIncludeTerms.length > 0) {
+            const testKeyword = mustIncludeTerms[0];
+            console.log(`[INFO] 🧪 フィールド別事前テスト: "${testKeyword}"`);
+            
+            for (const field of fields) {
+                try {
+                    const fieldTestResponse = await esClient.search({
+                        index: index,
+                        body: {
+                            query: {
+                                bool: {
+                                    must: [{
+                                        query_string: {
+                                            query: `*${testKeyword}*`,
+                                            fields: [field],
+                                            analyze_wildcard: true
+                                        }
+                                    }],
+                                    // 🔥 重要: publicityStatusフィルターを一時的に除外してテスト
+                                    // filter: [{ term: { "publicityStatus.keyword": "public" } }]
+                                }
+                            },
+                            size: 3,
+                            _source: [field, 'title', '_id', 'publicityStatus']
+                        }
+                    });
+
+                    console.log(`[INFO] 🔍 "${field}"フィールド単体テスト（publicityStatusフィルター無し）: ${fieldTestResponse.hits.total.value} 件`);
+                    
+                    if (fieldTestResponse.hits.hits.length > 0) {
+                        fieldTestResponse.hits.hits.forEach((hit, idx) => {
+                            const fieldValue = hit._source[field];
+                            const preview = typeof fieldValue === 'string' ? 
+                                fieldValue.substring(0, 100) + (fieldValue.length > 100 ? '...' : '') : 
+                                JSON.stringify(fieldValue);
+                            console.log(`    ${idx + 1}. ID:${hit._id} - publicityStatus:${JSON.stringify(hit._source.publicityStatus)} - ${field}: "${preview}"`);
+                        });
+                    }
+
+                    // publicityStatusフィルターありでもテスト
+                    const fieldTestWithFilterResponse = await esClient.search({
+                        index: index,
+                        body: {
+                            query: {
+                                bool: {
+                                    must: [{
+                                        query_string: {
+                                            query: `*${testKeyword}*`,
+                                            fields: [field],
+                                            analyze_wildcard: true
+                                        }
+                                    }],
+                                    filter: [{ term: { "publicityStatus.keyword": "public" } }]
+                                }
+                            },
+                            size: 3
+                        }
+                    });
+
+                    console.log(`[INFO] 🔍 "${field}"フィールド（publicityStatusフィルター付き）: ${fieldTestWithFilterResponse.hits.total.value} 件`);
+
+                } catch (fieldTestError) {
+                    console.error(`[ERROR] "${field}"フィールドテストエラー:`, fieldTestError.message);
+                }
+            }
+        }
+
+        // Elasticsearch のクエリ構築
         let query = {
             bool: {
                 must: [],
                 should: [],
                 must_not: [],
                 filter: [
-                    { term: { "publicityStatus": "public" } } // ✅ 公開作品のみを検索対象に
+                    // 🔥 重要な修正: publicityStatus.keyword を使用
+                    { term: { "publicityStatus.keyword": "public" } }
                 ]
             }
         };
 
+        console.log(`[INFO] 🔒 publicityStatusフィルター修正: publicityStatus.keyword = "public"`);
+
+        // キーワードが入力されている場合の検索クエリ
         if (mustIncludeTerms.length > 0) {
-            query.bool.must.push(...mustIncludeTerms.map(term => ({
-                multi_match: {
-                    query: term,
-                    fields: fields,
-                    fuzziness: "AUTO",
-                    operator: "and"
-                }
-            })));
+            console.log(`[INFO] 🔍 AND検索クエリを構築: ${mustIncludeTerms.join(', ')}`);
+            
+            mustIncludeTerms.forEach(term => {
+                // フィールドごとに異なる検索戦略を適用
+                const fieldQueries = [];
+
+                fields.forEach(field => {
+                    if (field === 'tags' || field === 'contestTags') {
+                        // タグフィールドは完全一致を優先
+                        fieldQueries.push({
+                            term: {
+                                [field]: {
+                                    value: term,
+                                    boost: 10.0
+                                }
+                            }
+                        });
+                        fieldQueries.push({
+                            wildcard: {
+                                [field]: {
+                                    value: `*${term}*`,
+                                    boost: 5.0
+                                }
+                            }
+                        });
+                    } else if (field === 'title') {
+                        // タイトルフィールド
+                        fieldQueries.push({
+                            match_phrase: {
+                                [field]: {
+                                    query: term,
+                                    boost: 8.0
+                                }
+                            }
+                        });
+                        fieldQueries.push({
+                            match: {
+                                [field]: {
+                                    query: term,
+                                    operator: "and",
+                                    boost: 6.0
+                                }
+                            }
+                        });
+                        fieldQueries.push({
+                            wildcard: {
+                                [field]: {
+                                    value: `*${term}*`,
+                                    boost: 4.0
+                                }
+                            }
+                        });
+                    } else if (field === 'content' || field === 'description') {
+                        // テキストフィールド（本文・説明）
+                        fieldQueries.push({
+                            match_phrase: {
+                                [field]: {
+                                    query: term,
+                                    boost: 7.0
+                                }
+                            }
+                        });
+                        fieldQueries.push({
+                            match: {
+                                [field]: {
+                                    query: term,
+                                    operator: "and",
+                                    boost: 5.0
+                                }
+                            }
+                        });
+                        fieldQueries.push({
+                            wildcard: {
+                                [field]: {
+                                    value: `*${term}*`,
+                                    boost: 3.0
+                                }
+                            }
+                        });
+                        fieldQueries.push({
+                            query_string: {
+                                query: `*${term}*`,
+                                fields: [field],
+                                analyze_wildcard: true,
+                                boost: 2.0
+                            }
+                        });
+                    }
+                });
+
+                // すべてのフィールドクエリをshouldで結合
+                query.bool.must.push({
+                    bool: {
+                        should: fieldQueries,
+                        minimum_should_match: 1
+                    }
+                });
+
+                console.log(`[INFO] 🎯 キーワード "${term}" に対して ${fieldQueries.length} 個の検索戦略を適用`);
+            });
         }
 
+        // キーワードが指定されていない場合は全件取得クエリ
+        if (mustIncludeTerms.length === 0 && shouldIncludeTerms.length === 0 && tags.length === 0 && !aiTool && !contestTag) {
+            console.log(`[INFO] 🔍 キーワード未指定のため全件取得クエリを使用`);
+            query = {
+                bool: {
+                    filter: [
+                        { term: { "publicityStatus.keyword": "public" } }
+                    ]
+                }
+            };
+        }
+
+        // OR検索 (should)
         if (shouldIncludeTerms.length > 0) {
-            query.bool.should.push(...shouldIncludeTerms.map(term => ({
-                multi_match: {
-                    query: term,
-                    fields: fields,
-                    fuzziness: "AUTO",
-                    operator: "or"
-                }
-            })));
+            console.log(`[INFO] 🔍 OR検索を追加: ${shouldIncludeTerms.join(', ')}`);
+            shouldIncludeTerms.forEach(term => {
+                const fieldQueries = [];
+                fields.forEach(field => {
+                    if (field === 'tags' || field === 'contestTags') {
+                        fieldQueries.push({ term: { [field]: term } });
+                        fieldQueries.push({ wildcard: { [field]: `*${term}*` } });
+                    } else {
+                        fieldQueries.push({ match: { [field]: { query: term, operator: "or" } } });
+                        fieldQueries.push({ wildcard: { [field]: `*${term}*` } });
+                    }
+                });
+                
+                query.bool.should.push({
+                    bool: {
+                        should: fieldQueries,
+                        minimum_should_match: 1
+                    }
+                });
+            });
         }
 
+        // 除外検索 (must_not)
         if (mustNotIncludeTerms.length > 0) {
-            query.bool.must_not.push(...mustNotIncludeTerms.map(term => ({
-                multi_match: {
-                    query: term,
-                    fields: fields,
-                    fuzziness: "AUTO"
-                }
-            })));
+            console.log(`[INFO] 🔍 除外検索を追加: ${mustNotIncludeTerms.join(', ')}`);
+            mustNotIncludeTerms.forEach(term => {
+                const fieldQueries = [];
+                fields.forEach(field => {
+                    fieldQueries.push({ wildcard: { [field]: `*${term}*` } });
+                    fieldQueries.push({ match: { [field]: term } });
+                });
+                
+                query.bool.must_not.push({
+                    bool: {
+                        should: fieldQueries,
+                        minimum_should_match: 1
+                    }
+                });
+            });
         }
 
+        // タグ検索
         if (tags.length > 0) {
+            console.log(`[INFO] 🏷️ タグ検索を追加: ${tags.join(', ')} (${tagSearchType})`);
             if (tagSearchType === "exact") {
                 query.bool.filter.push({ terms: { tags: tags } });
             } else {
@@ -224,8 +502,9 @@ router.get('/', async (req, res) => {
             }
         }
 
-        // AIツールでの検索を追加
+        // AIツールフィルター
         if (aiTool) {
+            console.log(`[INFO] 🤖 AIツールフィルターを追加: ${aiTool}`);
             query.bool.filter.push({
                 term: {
                     "aiEvidence.tools": aiTool
@@ -233,14 +512,10 @@ router.get('/', async (req, res) => {
             });
         }
 
-        // 🆕 コンテストタグでの検索を追加
-        // 🆕 コンテストタグでの検索を追加（修正版）
+        // コンテストタグフィルター
         if (contestTag) {
             console.log(`[INFO] 🏆 コンテストタグ検索: ${contestTag}`);
-
-            // fieldsにcontestTagsが含まれているかチェック
             if (fields.includes('contestTags')) {
-                // contestTagsフィールドでの検索
                 query.bool.must.push({
                     match: {
                         contestTags: {
@@ -249,21 +524,18 @@ router.get('/', async (req, res) => {
                         }
                     }
                 });
-                console.log(`[INFO] 🎯 contestTagsフィールドでの一致検索を実行`);
             } else {
-                // 従来のフィルター検索（完全一致）
                 query.bool.filter.push({
                     term: {
                         "contestTags": contestTag
                     }
                 });
-                console.log(`[INFO] 🔍 contestTagsフィルターでの完全一致検索を実行`);
             }
         }
 
-
-        // 年齢制限でのフィルタリングを追加
+        // 年齢制限フィルター
         if (ageFilter && ageFilter !== 'all') {
+            console.log(`[INFO] 🔞 年齢制限フィルターを追加: ${ageFilter}`);
             query.bool.filter.push({
                 term: {
                     isAdultContent: ageFilter === 'r18'
@@ -271,9 +543,10 @@ router.get('/', async (req, res) => {
             });
         }
 
+        // 完結状態フィルター
         if (req.query.isCompleted !== undefined) {
-            // 'true', 'false' の文字列をブール値に変換
             const isCompleted = req.query.isCompleted === 'true';
+            console.log(`[INFO] ✅ 完結状態フィルターを追加: ${isCompleted}`);
             query.bool.filter.push({
                 term: {
                     isCompleted: isCompleted
@@ -281,188 +554,163 @@ router.get('/', async (req, res) => {
             });
         }
 
-        console.log('[INFO] 🔍 Elasticsearch 検索クエリ:', JSON.stringify(query, null, 2));
-        console.log('[INFO] 🔒 公開作品のみを検索対象にフィルタリング適用');
+        console.log('[INFO] 🔍 最終的なElasticsearch検索クエリ:');
+        console.log(JSON.stringify(query, null, 2));
 
-        // Elasticsearchではソートを使用せず、単純にIDのリストを取得
+        // ソート設定
+        let sort = [];
+        switch (sortBy) {
+            case 'newest':
+                sort = [{ createdAt: "desc" }];
+                break;
+            case 'oldest':
+                sort = [{ createdAt: "asc" }];
+                break;
+            case 'popularity':
+                sort = [{ viewCounter: "desc" }, { goodCounter: "desc" }];
+                break;
+            case 'relevance':
+            default:
+                sort = ["_score", { createdAt: "desc" }];
+                break;
+        }
+
+        console.log(`[INFO] 📊 ソート設定: ${JSON.stringify(sort)}`);
+
+        // Elasticsearch 検索実行
+        console.log(`[INFO] 🚀 Elasticsearch検索を実行中...`);
+        const startTime = Date.now();
+        
         const response = await esClient.search({
             index: index,
             body: {
                 query,
-                from: 0, // 全IDを取得
-                size: 1000, // より多くのIDを取得（実際の状況に応じて調整）
-                _source: false, // IDだけを取得してソースは不要
+                from: skip,
+                size: size,
+                sort: sort,
+                highlight: {
+                    fields: Object.fromEntries(fields.map(field => [field, {}])),
+                    pre_tags: ["<mark>"],
+                    post_tags: ["</mark>"]
+                }
             }
         });
 
-        console.log(`[INFO] 📥 Elasticsearch のレスポンス: totalHits=${response.hits.total.value}`);
+        const searchTime = Date.now() - startTime;
+        const hits = response.hits.hits;
+        const total = response.hits.total.value;
 
-        const docIds = response.hits.hits.map(hit => hit._id);
-        const totalHits = response.hits.total.value;
+        console.log(`[INFO] ✅ Elasticsearch検索完了: ${searchTime}ms`);
+        console.log(`[INFO] ✅ 検索結果: ${hits.length} 件 / 全 ${total} 件`);
 
-        if (docIds.length === 0) {
-            console.log("[INFO] ❌ 検索結果なし");
-            return res.json({ results: [], total: 0, page, size });
-        }
-
-        console.log(`[INFO] 📋 Elasticsearch から取得した _id: ${docIds.length} 件`);
-
-        if (type === 'posts') {
-            // 作品の場合の検索・ソート処理
-            const getSortConfig = (sortBy) => {
-                switch (sortBy) {
-                    case 'newest':
-                        return { createdAt: -1 };
-                    case 'oldest':
-                        return { createdAt: 1 };
-                    case 'updated':
-                        return { updatedAt: -1, createdAt: -1 };
-                    case 'views':
-                        return { viewCounter: -1, createdAt: -1 };
-                    case 'likes':
-                        return { goodCounter: -1, createdAt: -1 };
-                    case 'bookmarks':
-                        return { bookShelfCounter: -1, createdAt: -1 };
-                    default:
-                        return { createdAt: -1 };
+        if (hits.length > 0) {
+            console.log(`[INFO] 📋 検索結果サンプル:`);
+            hits.slice(0, 3).forEach((hit, index) => {
+                console.log(`  ${index + 1}. ID: ${hit._id}, スコア: ${hit._score}`);
+                console.log(`     タイトル: ${hit._source.title || 'null'}`);
+                console.log(`     publicityStatus: ${JSON.stringify(hit._source.publicityStatus)}`);
+                
+                // 指定されたフィールドの内容を表示
+                fields.forEach(field => {
+                    if (hit._source[field]) {
+                        const value = typeof hit._source[field] === 'string' ? 
+                            hit._source[field].substring(0, 100) + '...' : 
+                            JSON.stringify(hit._source[field]);
+                        console.log(`     ${field}: ${value}`);
+                    }
+                });
+                
+                if (hit.highlight) {
+                    console.log(`     ハイライト: ${JSON.stringify(hit.highlight)}`);
                 }
-            };
-
-            const sortConfig = getSortConfig(sortBy);
-
-            // MongoDB側でソートしつつ、指定されたIDのみを取得
-            // ✅ MongoDB側でも公開作品のみに絞り込み（二重チェック）
-            const results = await Post.find({
-                _id: { $in: docIds },
-                publicityStatus: 'public' // ✅ 公開作品のみ
-            })
-                .populate('author')
-                .populate('series')
-                .sort(sortConfig)
-                .skip(from)
-                .limit(size)
-                .lean();
-
-            console.log(`[INFO] ✅ MongoDB から取得したデータ数: ${results.length}`);
-
-            res.json({
-                results,
-                total: totalHits,
-                page,
-                size,
-                hasMore: from + results.length < totalHits
             });
         } else {
-            // シリーズの場合の検索・ソート処理
-            // ✅ シリーズも公開のみに絞り込み
-            const seriesData = await Series.find({
-                _id: { $in: docIds },
-                publicityStatus: 'public' // ✅ 公開シリーズのみ
-            })
-                .populate('author')
-                .populate({
-                    path: 'posts.postId',
-                    select: 'viewCounter goodCounter bookShelfCounter'
-                })
-                .lean();
-
-            console.log(`[INFO] 📊 シリーズ件数: ${seriesData.length} 件`);
-
-            // シリーズごとに含まれる作品のメトリクスを計算
-            const enrichedSeriesData = seriesData.map(series => {
-                // 有効なpostIdを持つ投稿のみをフィルタリング
-                const validPosts = (series.posts || []).filter(p => p.postId);
-
-                // 各メトリクスの合計を計算
-                const totalViews = validPosts.reduce((sum, p) => sum + (p.postId.viewCounter || 0), 0);
-                const totalLikes = validPosts.reduce((sum, p) => sum + (p.postId.goodCounter || 0), 0);
-                const totalBookmarks = validPosts.reduce((sum, p) => sum + (p.postId.bookShelfCounter || 0), 0);
-
-                return {
-                    ...series,
-                    _totalViews: totalViews,
-                    _totalLikes: totalLikes,
-                    _totalBookmarks: totalBookmarks
-                };
-            });
-
-            // 選択されたソート方法に基づいてシリーズをソート
-            const sortedSeriesData = [...enrichedSeriesData];
-
-            switch (sortBy) {
-                case 'newest':
-                    sortedSeriesData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-                    break;
-                case 'oldest':
-                    sortedSeriesData.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-                    break;
-                case 'updated':
-                    sortedSeriesData.sort((a, b) => {
-                        const aDate = a.updatedAt ? new Date(a.updatedAt) : new Date(a.createdAt);
-                        const bDate = b.updatedAt ? new Date(b.updatedAt) : new Date(b.createdAt);
-                        return bDate - aDate;
-                    });
-                    break;
-                case 'views':
-                    sortedSeriesData.sort((a, b) => {
-                        if (b._totalViews !== a._totalViews) {
-                            return b._totalViews - a._totalViews;
-                        }
-                        // 閲覧数が同じ場合は作成日時で降順ソート
-                        return new Date(b.createdAt) - new Date(a.createdAt);
-                    });
-                    break;
-                case 'likes':
-                    sortedSeriesData.sort((a, b) => {
-                        if (b._totalLikes !== a._totalLikes) {
-                            return b._totalLikes - a._totalLikes;
-                        }
-                        // いいね数が同じ場合は作成日時で降順ソート
-                        return new Date(b.createdAt) - new Date(a.createdAt);
-                    });
-                    break;
-                case 'bookmarks':
-                    sortedSeriesData.sort((a, b) => {
-                        if (b._totalBookmarks !== a._totalBookmarks) {
-                            return b._totalBookmarks - a._totalBookmarks;
-                        }
-                        // ブックマーク数が同じ場合は作成日時で降順ソート
-                        return new Date(b.createdAt) - new Date(a.createdAt);
-                    });
-                    break;
-                default:
-                    sortedSeriesData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-                    break;
-            }
-
-            // ページネーション適用
-            const paginatedResults = sortedSeriesData.slice(from, from + size);
-
-            // 計算用のプロパティを削除（クライアントに送信する前に）
-            const cleanResults = paginatedResults.map(({ _totalViews, _totalLikes, _totalBookmarks, ...rest }) => {
-                return {
-                    ...rest,
-                    isCompleted: rest.isCompleted !== undefined ? rest.isCompleted : false // isCompleted が undefined の場合はデフォルトで false
-                };
-            });
-
-            console.log(`[INFO] ✅ ソート・ページネーション後のデータ数: ${cleanResults.length}`);
-
-            res.json({
-                results: cleanResults,
-                total: sortedSeriesData.length,
-                page,
-                size,
-                hasMore: from + cleanResults.length < sortedSeriesData.length
+            console.log(`[INFO] ❌ 検索結果が0件でした`);
+            return res.json({
+                results: [],
+                total: 0,
+                page: parseInt(page),
+                size: parseInt(size),
+                message: "検索条件に一致する結果が見つかりませんでした。",
+                debug: {
+                    searchedFields: fields,
+                    keywords: mustIncludeTerms,
+                    searchedIndex: index,
+                    publicityStatusFilter: "publicityStatus.keyword = 'public'"
+                }
             });
         }
 
-        console.log('\n🔍 ================== 検索リクエスト完了 ==================\n');
+        // MongoDB から詳細データを取得
+        const ids = hits.map(hit => hit._id);
+        let results = [];
+
+        console.log(`[INFO] 📋 MongoDB から詳細データを取得中: ${ids.length} 件`);
+
+        if (type === 'posts') {
+            results = await Post.find({ _id: { $in: ids } })
+                .populate([
+                    {
+                        path: 'author',
+                        select: 'nickname icon'
+                    },
+                    {
+                        path: 'series',
+                        select: 'title _id'
+                    }
+                ])
+                .lean();
+        } else if (type === 'series') {
+            results = await Series.find({ _id: { $in: ids } })
+                .populate([
+                    {
+                        path: 'author',
+                        select: 'nickname icon'
+                    }
+                ])
+                .lean();
+        }
+
+        console.log(`[INFO] 📋 MongoDB から取得したデータ: ${results.length} 件`);
+
+        // Elasticsearch の順序でソート
+        const sortedResults = ids.map(id => 
+            results.find(result => result._id.toString() === id)
+        ).filter(Boolean);
+
+        // ハイライト情報を追加
+        const enrichedResults = sortedResults.map((result, index) => {
+            const hit = hits[index];
+            return {
+                ...result,
+                highlight: hit.highlight || {},
+                score: hit._score || 0
+            };
+        });
+
+        console.log(`[INFO] ✅ 最終結果: ${enrichedResults.length} 件を返却`);
+
+        res.json({
+            results: enrichedResults,
+            total,
+            page: parseInt(page),
+            size: parseInt(size),
+            searchTime: `${searchTime}ms`,
+            debug: {
+                searchedFields: fields,
+                keywords: mustIncludeTerms,
+                publicityStatusFilter: "publicityStatus.keyword = 'public'"
+            }
+        });
 
     } catch (error) {
-        console.error('❌ 検索エンドポイントでのエラー:', error);
-        res.status(500).json({ message: '検索結果の取得に失敗しました。', error: error.message });
+        console.error('[ERROR] 検索中にエラーが発生:', error);
+        console.error('[ERROR] エラーの詳細:', error.stack);
+        res.status(500).json({ 
+            message: '検索中にエラーが発生しました。', 
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 });
-
 module.exports = router;

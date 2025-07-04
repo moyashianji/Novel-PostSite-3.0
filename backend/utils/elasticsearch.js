@@ -23,7 +23,7 @@ async function addIsAdultContentToExistingDocuments() {
       const body = posts.flatMap((post) => [
         { 
           update: { 
-            _index: 'posts', 
+            _index: 'posts_fixed', 
             _id: post._id.toString(),
             retry_on_conflict: 3 // 競合時のリトライ回数
           } 
@@ -100,7 +100,7 @@ async function migrateDataToElasticsearch() {
         console.log(`🔍 ID: ${post._id} | 🛠 サニタイズ後のコンテンツ:`, cleanContent);
   
         return [
-          { index: { _index: 'posts', _id: post._id.toString() } },
+          { index: { _index: 'posts_fixed', _id: post._id.toString() } },
           {
             title: post.title,
             content: cleanContent,
@@ -156,7 +156,7 @@ async function addPublicityStatusToExistingDocuments() {
       const body = posts.flatMap((post) => [
         { 
           update: { 
-            _index: 'posts', 
+            _index: 'posts_fixed', 
             _id: post._id.toString(),
             retry_on_conflict: 3 // 競合時のリトライ回数
           } 
@@ -219,7 +219,7 @@ async function addContestTagsToExistingDocuments() {
       const body = posts.flatMap((post) => [
         { 
           update: { 
-            _index: 'posts', 
+            _index: 'posts_fixed', 
             _id: post._id.toString(),
             retry_on_conflict: 3 // 競合時のリトライ回数
           } 

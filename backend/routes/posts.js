@@ -77,7 +77,7 @@ router.post('/bulk-update', authenticateToken, async (req, res) => {
         const esBulkBody = postIdsToUpdate.flatMap((postId) => [
           { 
             update: { 
-              _index: 'posts', 
+              _index: 'posts_fixed', 
               _id: postId.toString(),
               retry_on_conflict: 3
             } 
@@ -253,7 +253,7 @@ router.get('/tag/:tag', async (req, res) => {
 
     // 🔍 Elasticsearch で該当タグの投稿を検索
     const esResponse = await esClient.search({
-      index: 'posts',
+      index: 'posts_fixed',
       body: {
         query: {
           term: { "tags": tag }  // ✅ 完全一致検索
@@ -672,7 +672,7 @@ router.get('/search', async (req, res) => {
 
     // Elasticsearch 検索実行
     const response = await esClient.search({
-      index: 'posts',
+      index: 'posts_fixed',
       body: {
         query,
         from: from,

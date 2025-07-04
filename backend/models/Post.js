@@ -96,7 +96,7 @@ postSchema.post('save', async function (doc) {
     let existingDoc = null;
     try {
       const getResponse = await esClient.get({
-        index: 'posts',
+        index: 'posts_fixed',
         id: doc._id.toString(),
       });
       existingDoc = getResponse._source;
@@ -150,7 +150,7 @@ postSchema.post('save', async function (doc) {
       }
 
       const response = await esClient.update({
-        index: 'posts',
+        index: 'posts_fixed',
         id: doc._id.toString(),
         body: {
           doc: updateBody
@@ -194,7 +194,7 @@ postSchema.post('save', async function (doc) {
       });
 
       const response = await esClient.index({
-        index: 'posts',
+        index: 'posts_fixed',
         id: doc._id.toString(),
         body: esBody,
       });
@@ -215,7 +215,7 @@ postSchema.post('findOneAndDelete', async function (doc) {
 
   try {
     const response = await esClient.delete({
-      index: 'posts',
+      index: 'posts_fixed',
       id: doc._id.toString(),
     });
 

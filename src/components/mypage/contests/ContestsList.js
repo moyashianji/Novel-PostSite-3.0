@@ -27,7 +27,7 @@ const ContestsList = ({ contests = [], user }) => {
   const handleViewContest = (id) => {
     navigate(`/contests/${id}`);
   };
-  
+   
   const handleEditContest = (id) => {
     navigate(`/contest-edit/${id}`);
   };

@@ -40,7 +40,7 @@ router.get('/tags/popular', async (req, res) => {
     console.log(`[INFO] 🔍 Elasticsearchクエリ:`, JSON.stringify(query, null, 2));
 
     const response = await esClient.search({
-      index: 'posts',
+      index: 'posts_fixed',
       body: {
         size: 0, // 検索結果は不要
         query: query, // フィルタークエリを追加

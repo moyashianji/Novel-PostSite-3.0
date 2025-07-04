@@ -171,27 +171,35 @@ const handleInputChange = useCallback((field, value) => {
         }));
     }, [setSearchParams]);
 
-    const handleSearchClick = useCallback(() => {
-        const updatedQuery = new URLSearchParams();
+   const handleSearchClick = useCallback(() => {
+    console.log("🔍 検索ボタンがクリックされました");
+    console.log("🔍 現在の検索パラメータ:", searchParams);
+    
+    const updatedQuery = new URLSearchParams();
 
-        // デフォルトで作品タブを選択するように設定
-        Object.keys(searchParams).forEach((key) => {
-            if (searchParams[key]) {
-                updatedQuery.set(
-                    key,
-                    Array.isArray(searchParams[key]) ? searchParams[key].join(",") : searchParams[key]
-                );
-            }
-        });
-
-        // typeが指定されていない場合は、デフォルトでpostsを設定
-        if (!updatedQuery.has("type")) {
-            updatedQuery.set("type", "posts");
+    // すべての検索パラメータをURLに追加
+    Object.keys(searchParams).forEach((key) => {
+        if (searchParams[key] && searchParams[key] !== '') {
+            const value = Array.isArray(searchParams[key]) 
+                ? searchParams[key].join(",") 
+                : searchParams[key];
+            updatedQuery.set(key, value);
         }
+    });
 
-        console.log("🔍 更新された検索クエリ:", updatedQuery.toString());
-        navigate(`/search?${updatedQuery.toString()}`);
-    }, [searchParams, navigate]);
+    // typeが指定されていない場合は、デフォルトでpostsを設定
+    if (!updatedQuery.has("type")) {
+        updatedQuery.set("type", "posts");
+    }
+
+    // ページを1にリセット
+    updatedQuery.set("page", "1");
+
+    console.log("🔍 更新された検索クエリ:", updatedQuery.toString());
+    
+    // 検索ページに遷移（replace: trueで履歴を残さない）
+    navigate(`/search?${updatedQuery.toString()}`, { replace: true });
+}, [searchParams, navigate]);
 
     // 検索フィールドのオプション（コンテストタグを削除）
 const fieldsOptions = type === "users" 
