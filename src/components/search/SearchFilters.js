@@ -17,14 +17,16 @@ import {
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import { useSearch } from "../../context/SearchContext";
 import { useLocation, useNavigate } from "react-router-dom";
 
-const KeywordFilter = React.memo(({ label, value, onChange }) => (
+const KeywordFilter = React.memo(({ label, value, onChange, placeholder }) => (
     <TextField
         label={label}
         value={value || ''}
         onChange={onChange}
+        placeholder={placeholder}
         fullWidth
         sx={{ mb: 2 }}
         variant="outlined"
@@ -176,7 +178,7 @@ const SearchFilters = () => {
         navigate(`/search?${updatedQuery.toString()}`);
     }, [searchParams, navigate]);
 
-    // 検索フィールドのオプション
+    // 検索フィールドのオプション（コンテストタグを削除）
     const fieldsOptions = type === "users" 
         ? [
             { value: "nickname,favoriteAuthors", label: "ユーザー名・好きな作家タグ" },
@@ -195,7 +197,7 @@ const SearchFilters = () => {
                 { value: "title", label: "タイトル" },
                 { value: "content", label: "本文" },
                 { value: "tags", label: "タグ" },
-                { value: "contestTags", label: "コンテストタグ" }, // 🆕 コンテストタグ追加
+                // コンテストタグのオプションを削除
             ];
 
     return (
@@ -235,6 +237,32 @@ const SearchFilters = () => {
                         value={searchParams.mustNotInclude}
                         onChange={(e) => handleInputChange("mustNotInclude", e.target.value)}
                     />
+                    {/* 🆕 コンテストタグ検索フィールドを追加 */}
+                    <Box sx={{ mb: 2 }}>
+                        <FormLabel component="legend" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                            <EmojiEventsIcon sx={{ mr: 1, fontSize: '1.2rem', color: 'primary.main' }} />
+                            コンテストで検索（該当するコンテストタグを持つ作品を優先表示）
+                        </FormLabel>
+                        <TextField
+                            label="コンテストタグ"
+                            value={searchParams.contestTag || ''}
+                            onChange={(e) => handleInputChange("contestTag", e.target.value)}
+                            placeholder="例: 春コンテスト"
+                            fullWidth
+                            variant="outlined"
+                            size="small"
+                            sx={{
+                                '& .MuiOutlinedInput-root': {
+                                    borderRadius: 2,
+                                }
+                            }}
+                        />
+                        {searchParams.contestTag && (
+                            <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
+                                「{searchParams.contestTag}」のコンテストタグを持つ作品を優先表示
+                            </Typography>
+                        )}
+                    </Box>
                 </>
             )}
 
@@ -252,7 +280,8 @@ const SearchFilters = () => {
 
             <RadioFilter
                 label="検索対象"
-                value={Array.isArray(searchParams.fields) ? searchParams.fields.join(",") : searchParams.fields}
+                value={Array.isArray(searchParams.fields) ? 
+                    searchParams.fields.join(",") : searchParams.fields}
                 options={fieldsOptions}
                 onChange={(e) => handleInputChange("fields", e.target.value)}
             />
@@ -267,18 +296,6 @@ const SearchFilters = () => {
                 onChange={(e) => handleInputChange("tagSearchType", e.target.value)}
                 disabled={type === "users"}
             />
-
-            {/* 🆕 コンテストタグ選択時の注意書き */}
-            {searchParams.fields === "contestTags" && (
-                <Box sx={{ mb: 2 }}>
-                    <Chip 
-                        label="コンテストタグは完全一致検索のみ対応" 
-                        variant="outlined" 
-                        color="primary"
-                        size="small"
-                    />
-                </Box>
-            )}
 
             {type === "users" && (
                 <Box sx={{ mb: 2 }}>

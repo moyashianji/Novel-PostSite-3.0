@@ -1,8 +1,17 @@
 import React, { useMemo } from 'react';
 import { Box, Typography, Chip } from '@mui/material';
-import { Search as SearchIcon, SmartToy as SmartToyIcon } from '@mui/icons-material';
+import { 
+  Search as SearchIcon, 
+  SmartToy as SmartToyIcon,
+  EmojiEvents as EmojiEventsIcon
+} from '@mui/icons-material';
 
-const SearchResultsHeader = ({ searchParams, tab, onClearAIToolFilter }) => {
+const SearchResultsHeader = ({ 
+  searchParams, 
+  tab, 
+  onClearAIToolFilter,
+  onClearContestTagFilter 
+}) => {
   // 検索タイトルの生成
   const searchTitle = useMemo(() => {
     const parts = [];
@@ -28,6 +37,22 @@ const SearchResultsHeader = ({ searchParams, tab, onClearAIToolFilter }) => {
       hasFilters = true;
     }
     
+    if (searchParams.contestTag && tab !== "users") {
+      parts.push(
+        <Chip 
+          key="contestTag"
+          icon={<EmojiEventsIcon />}
+          label={`コンテスト: ${searchParams.contestTag}`} 
+          color="primary"
+          variant="outlined"
+          onDelete={onClearContestTagFilter}
+          size="medium"
+          sx={{ ml: 1, fontWeight: 500 }}
+        />
+      );
+      hasFilters = true;
+    }
+    
     if (!hasFilters) {
       return "すべての結果";
     }
@@ -41,7 +66,7 @@ const SearchResultsHeader = ({ searchParams, tab, onClearAIToolFilter }) => {
         {parts}
       </Box>
     );
-  }, [searchParams.mustInclude, searchParams.aiTool, tab, onClearAIToolFilter]);
+  }, [searchParams.mustInclude, searchParams.aiTool, searchParams.contestTag, tab, onClearAIToolFilter, onClearContestTagFilter]);
 
   return (
     <Box sx={{ mb: 3 }}>

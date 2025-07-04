@@ -90,8 +90,8 @@ const SearchResults = () => {
       filteredData = getSeriesByStatus(filteredData, seriesStatusFilter);
     }
     
-    // データをソート
-    return getSortedData(filteredData, sortOption, tab);
+    // データをソート（コンテストタグソートを含む）
+    return getSortedData(filteredData, sortOption, tab, searchParams.contestTag);
   }, [
     tab, 
     ageFilter, 
@@ -101,7 +101,8 @@ const SearchResults = () => {
     postsData, 
     seriesData, 
     usersData, 
-    sortOption
+    sortOption,
+    searchParams.contestTag
   ]);
   
   // 各フィルター適用後の正確な件数を計算する関数
@@ -135,14 +136,29 @@ const SearchResults = () => {
     usersData
   ]);
 
-  // 総ページ数の計算
+  // 総ページ数の計算（データ読み込み中は現在のページを最小値とする）
   const totalPages = useMemo(() => {
     const totalItems = getTotalFilteredCount();
-    return calculateTotalPages(totalItems, pageSize);
-  }, [getTotalFilteredCount, pageSize]);
+    const calculatedPages = calculateTotalPages(totalItems, pageSize);
+    
+    // データ読み込み中で、現在のページが計算されたページ数より大きい場合は
+    // 現在のページを最小値として使用（データ読み込み後に正しい値になる）
+    if (loading && currentPage > calculatedPages) {
+      return Math.max(calculatedPages, currentPage);
+    }
+    
+    return calculatedPages;
+  }, [getTotalFilteredCount, pageSize, loading, currentPage]);
   
-  // currentPageがtotalPagesを超える場合に調整
+  // currentPageがtotalPagesを超える場合に調整（データ読み込み後のみ）
   useEffect(() => {
+    // データがまだ読み込まれていない場合は処理をスキップ
+    const hasData = (tab === 'posts' && postsData.all.length > 0) ||
+                   (tab === 'series' && seriesData.all.length > 0) ||
+                   (tab === 'users' && usersData.length > 0);
+    
+    if (!hasData || loading) return;
+    
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(totalPages);
       
@@ -151,7 +167,7 @@ const SearchResults = () => {
       updatedParams.set("page", totalPages.toString());
       navigate({ search: updatedParams.toString() }, { replace: true });
     }
-  }, [currentPage, totalPages, location.search, navigate]);
+  }, [currentPage, totalPages, location.search, navigate, tab, postsData.all.length, seriesData.all.length, usersData.length, loading]);
 
   // 現在のページに表示するデータを計算
   useEffect(() => {
@@ -174,145 +190,184 @@ const SearchResults = () => {
     return calculateResultsInfo(currentPage, pageSize, totalCount);
   }, [currentPage, pageSize, getTotalFilteredCount]);
 
-  // URLパラメータ更新のヘルパー関数
-  const updateUrlParams = useCallback((updates) => {
+  // ページネーション処理
+  const handlePageChange = useCallback((event, newPage) => {
+    setCurrentPage(newPage);
+    
+    // URLも更新（ページ変更時はreplace: falseで履歴に残す）
     const updatedParams = new URLSearchParams(location.search);
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value !== null && value !== undefined) {
-        updatedParams.set(key, value.toString());
-      } else {
-        updatedParams.delete(key);
-      }
-    });
+    updatedParams.set("page", newPage.toString());
+    navigate({ search: updatedParams.toString() });
+    
+    // ページトップにスクロール
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.search, navigate]);
+
+  // ページサイズ変更処理
+  const handlePageSizeChange = useCallback((event) => {
+    const newSize = parseInt(event.target.value);
+    setPageSize(newSize);
+    setCurrentPage(1); // ページサイズ変更時はページを1に戻す
+    
+    // URLも更新
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.set("size", newSize.toString());
+    updatedParams.set("page", "1");
+    navigate({ search: updatedParams.toString() }, { replace: true });
+  }, [location.search, navigate]);
+
+  // タブ切り替え処理
+  const handleTabChange = useCallback((event, newValue) => {
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.set("type", newValue);
+    updatedParams.set("page", "1");
+    
+    // タブに応じてデフォルトの検索フィールドを設定
+    if (newValue === "users") {
+      updatedParams.set("fields", "nickname,favoriteAuthors");
+      updatedParams.set("tagSearchType", "exact");
+    } else if (newValue === "series") {
+      updatedParams.set("fields", "title,description,tags");
+    } else { // posts
+      updatedParams.set("fields", "title,content,tags");
+    }
+
+    setTab(newValue);
+    setCurrentPage(1);
+    navigate({ search: updatedParams.toString() });
+    
+    // ページトップにスクロール
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.search, navigate]);
+
+  // 年齢制限フィルター切り替え処理
+  const handleAgeFilterChange = useCallback((event, newValue) => {
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.set("ageFilter", newValue);
+    updatedParams.set("page", "1");
+    setAgeFilter(newValue);
+    setCurrentPage(1);
     navigate({ search: updatedParams.toString() }, { replace: true });
     
     // ページトップにスクロール
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.search, navigate]);
 
-  // ページネーション処理
-  const handlePageChange = useCallback((event, newPage) => {
-    setCurrentPage(newPage);
-    updateUrlParams({ page: newPage });
-  }, [updateUrlParams]);
-
-  // ページサイズ変更処理
-  const handlePageSizeChange = useCallback((event) => {
-    const newSize = parseInt(event.target.value);
-    setPageSize(newSize);
-    setCurrentPage(1);
-    updateUrlParams({ size: newSize, page: 1 });
-  }, [updateUrlParams]);
-
-  // タブ切り替え処理
-  const handleTabChange = useCallback((event, newValue) => {
-    const updates = { type: newValue, page: 1 };
-    
-    // タブに応じてデフォルトの検索フィールドを設定
-    if (newValue === "users") {
-      updates.fields = "nickname,favoriteAuthors";
-      updates.tagSearchType = "exact";
-    } else if (newValue === "series") {
-      updates.fields = "title,description,tags";
-    } else { // posts
-      updates.fields = "title,content,tags";
-    }
-
-    setTab(newValue);
-    setCurrentPage(1);
-    updateUrlParams(updates);
-  }, [updateUrlParams]);
-
-  // 年齢制限フィルター切り替え処理
-  const handleAgeFilterChange = useCallback((event, newValue) => {
-    setAgeFilter(newValue);
-    setCurrentPage(1);
-    updateUrlParams({ ageFilter: newValue, page: 1 });
-  }, [updateUrlParams]);
-
   // ソートオプション切り替え処理
   const handleSortChange = useCallback((event, newValue) => {
-    if (newValue === null) return;
+    if (newValue === null) return; // タブクリック時にnullが来た場合は無視
     
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.set("sortBy", newValue);
+    updatedParams.set("page", "1");
     setSortOption(newValue);
     setCurrentPage(1);
-    updateUrlParams({ sortBy: newValue, page: 1 });
-  }, [updateUrlParams]);
+    navigate({ search: updatedParams.toString() }, { replace: true });
+    
+    // ページトップにスクロール
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.search, navigate]);
 
   // 作品タイプフィルター変更ハンドラー
   const handlePostTypeFilterChange = useCallback((event, newValue) => {
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.set("postType", newValue);
+    updatedParams.set("page", "1");
     setPostTypeFilter(newValue);
     setCurrentPage(1);
-    updateUrlParams({ postType: newValue, page: 1 });
-  }, [updateUrlParams]);
+    navigate({ search: updatedParams.toString() }, { replace: true });
+    
+    // ページトップにスクロール
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.search, navigate]);
   
   // 文字数フィルター変更ハンドラー
   const handleLengthFilterChange = useCallback((event, newValue) => {
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.set("length", newValue);
+    updatedParams.set("page", "1");
     setLengthFilter(newValue);
     setCurrentPage(1);
-    updateUrlParams({ length: newValue, page: 1 });
-  }, [updateUrlParams]);
+    navigate({ search: updatedParams.toString() }, { replace: true });
+    
+    // ページトップにスクロール
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.search, navigate]);
   
   // シリーズ状態フィルター変更ハンドラー
   const handleSeriesStatusFilterChange = useCallback((event, newValue) => {
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.set("seriesStatus", newValue);
+    updatedParams.set("page", "1");
     setSeriesStatusFilter(newValue);
     setCurrentPage(1);
-    updateUrlParams({ seriesStatus: newValue, page: 1 });
-  }, [updateUrlParams]);
+    navigate({ search: updatedParams.toString() }, { replace: true });
+    
+    // ページトップにスクロール
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.search, navigate]);
 
   // タグクリックハンドラー
   const handleTagClick = useCallback((tag) => {
-    updateUrlParams({ mustInclude: tag, page: 1 });
-  }, [updateUrlParams]);
+    // 検索クエリを更新
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.set("mustInclude", tag);
+    updatedParams.set("page", "1");
+    navigate({ search: updatedParams.toString() });
+  }, [location.search, navigate]);
 
   // AIツールクリックハンドラー
   const handleAiToolClick = useCallback((tool) => {
-    updateUrlParams({ aiTool: tool, page: 1 });
-  }, [updateUrlParams]);
-
-  // コンテストタグクリックハンドラー
-  const handleContestTagClick = useCallback((tag) => {
-    updateUrlParams({ 
-      mustInclude: tag, 
-      fields: "contestTags", 
-      page: 1 
-    });
-  }, [updateUrlParams]);
+    // 検索クエリを更新
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.set("aiTool", tool);
+    updatedParams.set("page", "1");
+    navigate({ search: updatedParams.toString() });
+  }, [location.search, navigate]);
 
   // AIツールフィルターをクリアする処理
   const clearAIToolFilter = useCallback(() => {
-    updateUrlParams({ aiTool: null, page: 1 });
-  }, [updateUrlParams]);
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.delete("aiTool");
+    updatedParams.set("page", "1");
+    navigate({ search: updatedParams.toString() });
+  }, [location.search, navigate]);
 
-  // `searchParams.type`の変更を監視してタブを更新
-  useEffect(() => {
-    setTab(searchParams.type);
-  }, [searchParams.type]);
+  // コンテストタグクリアハンドラー
+  const clearContestTagFilter = useCallback(() => {
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.delete("contestTag");
+    updatedParams.set("page", "1");
+    navigate({ search: updatedParams.toString() });
+  }, [location.search, navigate]);
 
-  // searchParams.ageFilterの変更を監視してフィルターを更新
-  useEffect(() => {
-    setAgeFilter(searchParams.ageFilter);
-  }, [searchParams.ageFilter]);
-  
-  // searchParams.postTypeの変更を監視してフィルターを更新
-  useEffect(() => {
-    setPostTypeFilter(searchParams.postType || "all");
-  }, [searchParams.postType]);
-  
-  // searchParams.lengthの変更を監視してフィルターを更新
-  useEffect(() => {
-    setLengthFilter(searchParams.length || "all");
-  }, [searchParams.length]);
-  
-  // searchParams.seriesStatusの変更を監視してフィルターを更新
-  useEffect(() => {
-    setSeriesStatusFilter(searchParams.seriesStatus || "all");
-  }, [searchParams.seriesStatus]);
+  // コンテストタグクリックハンドラー（コンテストタグクラウド用）
+  const handleContestTagClick = useCallback((tag) => {
+    // 検索クエリを更新（コンテストタグ検索）
+    const updatedParams = new URLSearchParams(location.search);
+    updatedParams.set("contestTag", tag);
+    updatedParams.set("page", "1");
+    navigate({ search: updatedParams.toString() });
+  }, [location.search, navigate]);
 
-  // searchParams.sortByの変更を監視してソートオプションを更新
+  // URLパラメータと状態の同期を確実にする
   useEffect(() => {
-    setSortOption(searchParams.sortBy || "newest");
-  }, [searchParams.sortBy]);
+    const params = parseSearchParams(location.search);
+    
+    // currentPageの同期（データ読み込み中は元のページを保持）
+    if (params.page !== currentPage && !loading) {
+      setCurrentPage(params.page);
+    }
+    
+    // その他の状態の同期
+    if (params.type !== tab) setTab(params.type);
+    if (params.ageFilter !== ageFilter) setAgeFilter(params.ageFilter);
+    if (params.sortBy !== sortOption) setSortOption(params.sortBy);
+    if (params.size !== pageSize) setPageSize(params.size);
+    if (params.postType !== postTypeFilter) setPostTypeFilter(params.postType || "all");
+    if (params.length !== lengthFilter) setLengthFilter(params.length || "all");
+    if (params.seriesStatus !== seriesStatusFilter) setSeriesStatusFilter(params.seriesStatus || "all");
+  }, [location.search, currentPage, tab, ageFilter, sortOption, pageSize, postTypeFilter, lengthFilter, seriesStatusFilter, loading]);
 
   return (
     <Container sx={{ mt: 4 }}>
@@ -320,6 +375,7 @@ const SearchResults = () => {
         searchParams={searchParams}
         tab={tab}
         onClearAIToolFilter={clearAIToolFilter}
+        onClearContestTagFilter={clearContestTagFilter}
       />
 
       <SearchTabs 

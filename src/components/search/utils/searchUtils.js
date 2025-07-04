@@ -34,6 +34,7 @@ export const parseSearchParams = (locationSearch) => {
     tagSearchType: query.get("tagSearchType") || "partial",
     type: query.get("type") || "posts",
     aiTool: query.get("aiTool") || "",
+    contestTag: query.get("contestTag") || "", // コンテストタグ検索パラメータを追加
     ageFilter: query.get("ageFilter") || "all",
     sortBy: query.get("sortBy") || "newest",
     page: parseInt(query.get("page")) || 1,

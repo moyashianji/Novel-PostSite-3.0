@@ -44,14 +44,41 @@ export const getSeriesByStatus = (series, status) => {
   }
 };
 
-// データをソートする関数
-export const getSortedData = (data, sortOption, tab) => {
+// データをソートする関数（コンテストタグソート機能を追加）
+export const getSortedData = (data, sortOption, tab, contestTag = '') => {
   if (!data || data.length === 0) return [];
   
   // ユーザータブの場合はソートなし
   if (tab === 'users') return data;
   
-  // 現在のソートオプションを取得
+  // コンテストタグが指定されている場合は、コンテストタグソートを優先
+  if (contestTag) {
+    return [...data].sort((a, b) => {
+      const aHasTag = a.contestTags && a.contestTags.includes(contestTag);
+      const bHasTag = b.contestTags && b.contestTags.includes(contestTag);
+      
+      // コンテストタグを持つアイテムを上位に表示
+      if (aHasTag && !bHasTag) return -1;
+      if (!aHasTag && bHasTag) return 1;
+      
+      // 両方がコンテストタグを持つか、両方が持たない場合は通常のソート
+      const sortConfig = SORT_OPTIONS.find(option => option.value === sortOption);
+      if (sortConfig) {
+        const aValue = a[sortConfig.field] || 0;
+        const bValue = b[sortConfig.field] || 0;
+        
+        if (sortConfig.order === 'asc') {
+          return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+        } else {
+          return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+        }
+      }
+      
+      return 0;
+    });
+  }
+  
+  // 通常のソート
   const sortConfig = SORT_OPTIONS.find(option => option.value === sortOption);
   if (!sortConfig) return data;
   
